@@ -8,21 +8,33 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Plus, Search, Droplets } from "lucide-react"
+import { Plus, Search, Droplets, ChevronRight, Anchor } from "lucide-react"
 
 export default function WaterQualityPage() {
   const records = [
-    { id: "WQ-101", sampling_id: "SMP-001", temp: "29.5", salinity: "32", do: "5.4", ph: "8.1", chlorophyll: "12.5" },
-    { id: "WQ-102", sampling_id: "SMP-002", temp: "28.1", salinity: "30", do: "6.0", ph: "8.2", chlorophyll: "8.2" },
-    { id: "WQ-103", sampling_id: "SMP-003", temp: "30.2", salinity: "33", do: "4.8", ph: "7.9", chlorophyll: "45.0" },
+    { id: "WQ-101", sampling_id: "SMP-001", station: "Teluk Jakarta (ST-01)", temp: "29.5", salinity: "32", do: "5.4", ph: "8.1", chlorophyll: "12.5" },
+    { id: "WQ-102", sampling_id: "SMP-002", station: "Teluk Ambon (ST-02)", temp: "28.1", salinity: "30", do: "6.0", ph: "8.2", chlorophyll: "8.2" },
+    { id: "WQ-103", sampling_id: "SMP-003", station: "Pesisir Selatan Jawa (ST-03)", temp: "30.2", salinity: "33", do: "4.8", ph: "7.9", chlorophyll: "45.0" },
   ]
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Breadcrumb Navigation */}
+      <nav className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <span>Monitoring</span>
+        <ChevronRight className="h-3.5 w-3.5" />
+        <a href="/monitoring/stations" className="hover:text-primary transition-colors flex items-center gap-1">
+          <Anchor className="h-3.5 w-3.5" />
+          Stasiun Monitoring
+        </a>
+        <ChevronRight className="h-3.5 w-3.5" />
+        <span className="font-semibold text-foreground">Kualitas Air</span>
+      </nav>
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Kualitas Air</h1>
-          <p className="text-muted-foreground">Parameter lingkungan laut (Suhu, Salinitas, DO, pH, Klorofil-a).</p>
+          <p className="text-muted-foreground">Parameter lingkungan laut (Suhu, Salinitas, DO, pH, Klorofil-a) per stasiun monitoring.</p>
         </div>
         <Button>
           <Plus className="mr-2 h-4 w-4" />
@@ -33,7 +45,7 @@ export default function WaterQualityPage() {
       <div className="flex items-center gap-2">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input type="search" placeholder="Cari ID WQ / Sampling..." className="pl-8" />
+          <Input type="search" placeholder="Cari ID WQ / Sampling / Stasiun..." className="pl-8" />
         </div>
       </div>
 
@@ -43,6 +55,7 @@ export default function WaterQualityPage() {
             <TableRow>
               <TableHead>ID WQ</TableHead>
               <TableHead>ID Sampling</TableHead>
+              <TableHead>Stasiun</TableHead>
               <TableHead>Suhu (°C)</TableHead>
               <TableHead>Salinitas (psu)</TableHead>
               <TableHead>DO (mg/L)</TableHead>
@@ -61,6 +74,7 @@ export default function WaterQualityPage() {
                   </div>
                 </TableCell>
                 <TableCell>{r.sampling_id}</TableCell>
+                <TableCell>{r.station}</TableCell>
                 <TableCell>{r.temp}</TableCell>
                 <TableCell>{r.salinity}</TableCell>
                 <TableCell>{r.do}</TableCell>

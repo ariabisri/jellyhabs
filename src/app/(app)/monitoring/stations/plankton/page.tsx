@@ -8,22 +8,34 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Plus, Search, Bug } from "lucide-react"
+import { Plus, Search, Bug, ChevronRight, Anchor } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 
 export default function PlanktonPage() {
   const records = [
-    { id: "PLK-101", sampling_id: "SMP-001", type: "Fitoplankton", species: "Pyrodinium bahamense", density: "15000", toxicity: "Beracun" },
-    { id: "PLK-102", sampling_id: "SMP-002", type: "Zooplankton", species: "Copepoda", density: "5000", toxicity: "Tidak" },
-    { id: "JEL-103", sampling_id: "SMP-003", type: "Ubur-ubur", species: "Aurelia aurita", density: "200", toxicity: "Iritasi Ringan" },
+    { id: "PLK-101", sampling_id: "SMP-001", station: "Teluk Jakarta (ST-01)", type: "Fitoplankton", species: "Pyrodinium bahamense", density: "15,000", toxicity: "Beracun" },
+    { id: "PLK-102", sampling_id: "SMP-002", station: "Teluk Ambon (ST-02)", type: "Zooplankton", species: "Copepoda", density: "5,000", toxicity: "Tidak" },
+    { id: "JEL-103", sampling_id: "SMP-003", station: "Pesisir Selatan Jawa (ST-03)", type: "Ubur-ubur", species: "Aurelia aurita", density: "200", toxicity: "Iritasi Ringan" },
   ]
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Breadcrumb Navigation */}
+      <nav className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <span>Monitoring</span>
+        <ChevronRight className="h-3.5 w-3.5" />
+        <a href="/monitoring/stations" className="hover:text-primary transition-colors flex items-center gap-1">
+          <Anchor className="h-3.5 w-3.5" />
+          Stasiun Monitoring
+        </a>
+        <ChevronRight className="h-3.5 w-3.5" />
+        <span className="font-semibold text-foreground">Plankton & Ubur-ubur</span>
+      </nav>
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Data Plankton & Ubur-ubur</h1>
-          <p className="text-muted-foreground">Pencatatan kepadatan spesies penyebab HABs dan blooming ubur-ubur.</p>
+          <p className="text-muted-foreground">Pencatatan kepadatan spesies penyebab HABs dan blooming ubur-ubur per stasiun monitoring.</p>
         </div>
         <Button>
           <Plus className="mr-2 h-4 w-4" />
@@ -33,8 +45,8 @@ export default function PlanktonPage() {
 
       <div className="flex items-center gap-2">
         <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input type="search" placeholder="Cari spesies / ID..." className="pl-8" />
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground text-xs" />
+          <Input type="search" placeholder="Cari spesies / ID / Stasiun..." className="pl-8" />
         </div>
       </div>
 
@@ -44,6 +56,7 @@ export default function PlanktonPage() {
             <TableRow>
               <TableHead>ID Data</TableHead>
               <TableHead>ID Sampling</TableHead>
+              <TableHead>Stasiun</TableHead>
               <TableHead>Kategori</TableHead>
               <TableHead>Spesies</TableHead>
               <TableHead>Kepadatan (sel/L atau ind/m²)</TableHead>
@@ -61,6 +74,7 @@ export default function PlanktonPage() {
                   </div>
                 </TableCell>
                 <TableCell>{r.sampling_id}</TableCell>
+                <TableCell>{r.station}</TableCell>
                 <TableCell>{r.type}</TableCell>
                 <TableCell className="italic">{r.species}</TableCell>
                 <TableCell>{r.density}</TableCell>
