@@ -8,7 +8,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Plus, Search, Droplets, ChevronRight, Anchor } from "lucide-react"
+import { EmptyState } from "@/components/ui/empty-state"
+import { Plus, Search, Droplets, ChevronRight, Anchor, Download } from "lucide-react"
 
 export default function WaterQualityPage() {
   const records = [
@@ -47,48 +48,61 @@ export default function WaterQualityPage() {
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input type="search" placeholder="Cari ID WQ / Sampling / Stasiun..." className="pl-8" />
         </div>
+        <Button variant="outline" className="ml-auto">
+          <Download className="mr-2 h-4 w-4" />
+          Ekspor CSV
+        </Button>
       </div>
 
       <div className="rounded-md border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>ID WQ</TableHead>
-              <TableHead>ID Sampling</TableHead>
-              <TableHead>Stasiun</TableHead>
-              <TableHead>Suhu (°C)</TableHead>
-              <TableHead>Salinitas (psu)</TableHead>
-              <TableHead>DO (mg/L)</TableHead>
-              <TableHead>pH</TableHead>
-              <TableHead>Klorofil-a (µg/L)</TableHead>
-              <TableHead className="text-right">Aksi</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {records.map((r) => (
-              <TableRow key={r.id}>
-                <TableCell className="font-medium">
-                  <div className="flex items-center gap-2">
-                    <Droplets className="h-4 w-4 text-primary" />
-                    {r.id}
-                  </div>
-                </TableCell>
-                <TableCell>{r.sampling_id}</TableCell>
-                <TableCell>{r.station}</TableCell>
-                <TableCell>{r.temp}</TableCell>
-                <TableCell>{r.salinity}</TableCell>
-                <TableCell>{r.do}</TableCell>
-                <TableCell>{r.ph}</TableCell>
-                <TableCell className={Number(r.chlorophyll) > 20 ? "text-destructive font-bold" : ""}>
-                  {r.chlorophyll}
-                </TableCell>
-                <TableCell className="text-right">
-                  <Button variant="ghost" size="sm">Edit</Button>
-                </TableCell>
+        {records.length === 0 ? (
+          <EmptyState
+            icon={Droplets}
+            title="Belum ada data kualitas air"
+            description="Tambahkan data parameter lingkungan laut pertama untuk stasiun monitoring."
+            actionLabel="Tambah Data"
+          />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>ID WQ</TableHead>
+                <TableHead>ID Sampling</TableHead>
+                <TableHead>Stasiun</TableHead>
+                <TableHead>Suhu (°C)</TableHead>
+                <TableHead>Salinitas (psu)</TableHead>
+                <TableHead>DO (mg/L)</TableHead>
+                <TableHead>pH</TableHead>
+                <TableHead>Klorofil-a (µg/L)</TableHead>
+                <TableHead className="text-right">Aksi</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {records.map((r) => (
+                <TableRow key={r.id}>
+                  <TableCell className="font-medium">
+                    <div className="flex items-center gap-2">
+                      <Droplets className="h-4 w-4 text-primary" />
+                      {r.id}
+                    </div>
+                  </TableCell>
+                  <TableCell>{r.sampling_id}</TableCell>
+                  <TableCell>{r.station}</TableCell>
+                  <TableCell>{r.temp}</TableCell>
+                  <TableCell>{r.salinity}</TableCell>
+                  <TableCell>{r.do}</TableCell>
+                  <TableCell>{r.ph}</TableCell>
+                  <TableCell className={Number(r.chlorophyll) > 20 ? "text-destructive font-bold" : ""}>
+                    {r.chlorophyll}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button variant="ghost" size="sm">Edit</Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
       </div>
     </div>
   )

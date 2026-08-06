@@ -8,10 +8,12 @@ export function LineChart({
   title,
   xAxisData,
   seriesData,
+  yAxisLabel,
 }: {
   title: string;
   xAxisData: string[];
   seriesData: number[];
+  yAxisLabel?: string;
 }) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
@@ -63,6 +65,13 @@ export function LineChart({
     },
     yAxis: {
       type: 'value',
+      name: yAxisLabel || '',
+      nameLocation: 'middle',
+      nameGap: 40,
+      nameTextStyle: {
+        color: textColor,
+        fontSize: 12,
+      },
       axisLabel: {
         color: textColor,
       },

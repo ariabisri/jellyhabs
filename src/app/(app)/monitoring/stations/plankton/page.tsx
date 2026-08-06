@@ -8,7 +8,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Plus, Search, Bug, ChevronRight, Anchor } from "lucide-react"
+import { EmptyState } from "@/components/ui/empty-state"
+import { Plus, Search, Bug, ChevronRight, Anchor, Download } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 
 export default function PlanktonPage() {
@@ -48,48 +49,61 @@ export default function PlanktonPage() {
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground text-xs" />
           <Input type="search" placeholder="Cari spesies / ID / Stasiun..." className="pl-8" />
         </div>
+        <Button variant="outline" className="ml-auto">
+          <Download className="mr-2 h-4 w-4" />
+          Ekspor CSV
+        </Button>
       </div>
 
       <div className="rounded-md border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>ID Data</TableHead>
-              <TableHead>ID Sampling</TableHead>
-              <TableHead>Stasiun</TableHead>
-              <TableHead>Kategori</TableHead>
-              <TableHead>Spesies</TableHead>
-              <TableHead>Kepadatan (sel/L atau ind/m²)</TableHead>
-              <TableHead>Status Toksisitas</TableHead>
-              <TableHead className="text-right">Aksi</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {records.map((r) => (
-              <TableRow key={r.id}>
-                <TableCell className="font-medium">
-                  <div className="flex items-center gap-2">
-                    <Bug className="h-4 w-4 text-primary" />
-                    {r.id}
-                  </div>
-                </TableCell>
-                <TableCell>{r.sampling_id}</TableCell>
-                <TableCell>{r.station}</TableCell>
-                <TableCell>{r.type}</TableCell>
-                <TableCell className="italic">{r.species}</TableCell>
-                <TableCell>{r.density}</TableCell>
-                <TableCell>
-                  <Badge variant={r.toxicity === "Beracun" ? "destructive" : "secondary"}>
-                    {r.toxicity}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right">
-                  <Button variant="ghost" size="sm">Edit</Button>
-                </TableCell>
+        {records.length === 0 ? (
+          <EmptyState
+            icon={Bug}
+            title="Belum ada data plankton & ubur-ubur"
+            description="Tambahkan data kelimpahan fitoplankton, zooplankton, atau ubur-ubur."
+            actionLabel="Tambah Spesies"
+          />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>ID Data</TableHead>
+                <TableHead>ID Sampling</TableHead>
+                <TableHead>Stasiun</TableHead>
+                <TableHead>Kategori</TableHead>
+                <TableHead>Spesies</TableHead>
+                <TableHead>Kepadatan (sel/L atau ind/m²)</TableHead>
+                <TableHead>Status Toksisitas</TableHead>
+                <TableHead className="text-right">Aksi</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {records.map((r) => (
+                <TableRow key={r.id}>
+                  <TableCell className="font-medium">
+                    <div className="flex items-center gap-2">
+                      <Bug className="h-4 w-4 text-primary" />
+                      {r.id}
+                    </div>
+                  </TableCell>
+                  <TableCell>{r.sampling_id}</TableCell>
+                  <TableCell>{r.station}</TableCell>
+                  <TableCell>{r.type}</TableCell>
+                  <TableCell className="italic">{r.species}</TableCell>
+                  <TableCell>{r.density}</TableCell>
+                  <TableCell>
+                    <Badge variant={r.toxicity === "Beracun" ? "destructive" : "secondary"}>
+                      {r.toxicity}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button variant="ghost" size="sm">Edit</Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
       </div>
     </div>
   )

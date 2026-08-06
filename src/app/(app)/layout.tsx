@@ -29,20 +29,19 @@ export default function AppLayout({
           </div>
 
           <div className="flex items-center gap-3">
-            <button className="relative flex size-9 items-center justify-center rounded-full border border-border bg-card/80 text-foreground hover:bg-accent/20 transition-all">
+            <button className="relative flex size-9 items-center justify-center rounded-full border border-border bg-card/80 text-foreground hover:bg-accent/20 transition-all" title="Notifikasi (segera hadir)">
               <Bell className="size-4" />
-              <span className="absolute top-1 right-1 size-2 rounded-full bg-primary glow-cyan"></span>
             </button>
 
             <ThemeToggle />
 
             <div className="hidden sm:flex items-center gap-2.5 border-l border-border pl-3 ml-1">
               <div className="flex size-8 items-center justify-center rounded-full bg-gradient-to-tr from-primary to-accent-violet text-primary-foreground font-bold text-xs shadow-sm">
-                DA
+                U
               </div>
               <div className="flex flex-col text-xs leading-tight">
-                <span className="font-medium text-foreground">Halo, Dr. Aris</span>
-                <span className="text-[10px] text-muted-foreground">Peneliti Maritim</span>
+                <span className="font-medium text-foreground">Pengguna</span>
+                <span className="text-[10px] text-muted-foreground">Jellywatch Pro</span>
               </div>
             </div>
           </div>

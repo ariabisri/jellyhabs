@@ -74,14 +74,18 @@ export default function StationsPage() {
             {stations.map((s) => (
               <TableRow key={s.id}>
                 <TableCell className="font-medium">{s.id}</TableCell>
-                <TableCell className="font-semibold">{s.name}</TableCell>
+                <TableCell>
+                  <a href={`/monitoring/stations/${s.id}`} className="font-semibold text-primary hover:underline transition-colors">
+                    {s.name}
+                  </a>
+                </TableCell>
                 <TableCell>{s.prov}</TableCell>
                 <TableCell>{s.city}</TableCell>
                 <TableCell className="font-mono text-xs">{s.lat}, {s.lng}</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
                     <a
-                      href="/monitoring/stations/water-quality"
+                      href={`/monitoring/stations/${s.id}`}
                       className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
                       title="Lihat Data Kualitas Air"
                     >
@@ -89,7 +93,7 @@ export default function StationsPage() {
                       {s.wqCount} WQ
                     </a>
                     <a
-                      href="/monitoring/stations/plankton"
+                      href={`/monitoring/stations/${s.id}`}
                       className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-accent-violet/10 text-accent-violet hover:bg-accent-violet/20 transition-colors"
                       title="Lihat Data Plankton & Ubur-ubur"
                     >
