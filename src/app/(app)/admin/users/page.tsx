@@ -13,9 +13,17 @@ import { Badge } from "@/components/ui/badge"
 
 export default function UsersPage() {
   const users = [
-    { id: "1", name: "Dr. Budi Santoso", email: "budi@brin.go.id", role: "Admin", status: "Aktif" },
-    { id: "2", name: "Siti Aminah, M.Si", email: "siti@univ.ac.id", role: "Peneliti", status: "Aktif" },
-    { id: "3", name: "Andi Wijaya", email: "andi@gmail.com", role: "Publik", status: "Non-Aktif" },
+    { id: "1", name: "Dr. Hanung Agus Mulyadi", email: "budi@brin.go.id", role: "Peneliti", status: "Aktif" },
+    { id: "2", name: "Mochamad Ramdhan Firdhaus, M.Si", email: "ramdhan@brin.go.id", role: "Peneliti", status: "Aktif" },
+    { id: "3", name: "Nurul Fitriya, M.Si", email: "nurul@brin.go.id", role: "Peneliti", status: "Aktif" },
+    { id: "4", name: "Oksto Ridho Sianturi, M.Sc", email: "oksto@brin.go.id", role: "Peneliti", status: "Aktif" },
+    { id: "5", name: "Fismatman Ruli, S.Kel. M.Si", email: "fismat@brin.go.id", role: "Peneliti", status: "Aktif" },
+    { id: "6", name: "Lady Ayu, M.Si ", email: "lady@unpad.ac.id", role: "Peneliti", status: "Aktif" },
+    { id: "6", name: "Dr. Sem Likumahua, M.Mar.Cons. ", email: "sem@brin.go.id", role: "Peneliti", status: "Aktif" },
+    { id: "6", name: "Aria Bisri, S.Kom, MT  ", email: "aria@brin.go.id", role: "Admin", status: "Aktif" },
+    { id: "6", name: "Dr. Bayu Prayudha  ", email: "bayu@brin.go.id", role: "Peneliti", status: "Aktif" },
+    { id: "6", name: "Arief Seno Adji, M.GIS   ", email: "arief@brin.go.id", role: "Peneliti", status: "Aktif" },
+
   ]
 
   return (
