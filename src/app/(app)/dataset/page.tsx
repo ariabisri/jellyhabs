@@ -1,4 +1,7 @@
-import { Button } from "@/components/ui/button"
+"use client"
+
+import * as React from "react"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
   Table,
@@ -8,9 +11,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Plus, Search, FileText, Download } from "lucide-react"
+import { Plus, Search, FileText, Download, Lock } from "lucide-react"
+import { cn } from "@/lib/utils"
+import { useAuth } from "@/lib/auth-context"
 
 export default function DatasetPage() {
+  const { authenticated } = useAuth()
+
   const datasets = [
     { id: "DS-01", name: "Data Kualitas Air Teluk Jakarta 2025", format: "CSV", size: "2.5 MB", uploader: "Dr. Budi", date: "2026-01-15" },
     { id: "DS-02", name: "Laporan Distribusi Spesies HABs", format: "PDF", size: "5.1 MB", uploader: "Siti Aminah", date: "2026-03-22" },
@@ -18,15 +25,26 @@ export default function DatasetPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Manajemen Dataset</h1>
           <p className="text-muted-foreground">Unduh atau unggah dataset publikasi dan hasil analisis mentah.</p>
         </div>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          Unggah Dataset
-        </Button>
+        {authenticated ? (
+          <Button>
+            <Plus className="mr-2 h-4 w-4" />
+            Unggah Dataset
+          </Button>
+        ) : (
+          <a
+            href="/login"
+            className={cn(buttonVariants({ variant: "default" }), "gap-1.5 shadow-md")}
+            title="Silakan login untuk mengunggah dataset"
+          >
+            <Lock className="h-4 w-4" />
+            <span>Login untuk Unggah Data</span>
+          </a>
+        )}
       </div>
 
       <div className="flex items-center gap-2">

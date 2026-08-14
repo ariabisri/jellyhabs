@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -28,7 +29,8 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Search, Loader2, Edit, Trash2, Shield, User, AlertCircle, RefreshCw } from "lucide-react"
+import { Plus, Search, Loader2, Edit, Trash2, Shield, User, AlertCircle, RefreshCw, Lock } from "lucide-react"
+import { useAuth } from "@/lib/auth-context"
 
 interface RoleItem {
   id: string
@@ -49,6 +51,9 @@ interface UserItem {
 }
 
 export default function UsersPage() {
+  const router = useRouter()
+  const { user: authUser, loading: authLoading, authenticated } = useAuth()
+
   const [users, setUsers] = React.useState<UserItem[]>([])
   const [roles, setRoles] = React.useState<RoleItem[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -71,6 +76,15 @@ export default function UsersPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false)
   const [deletingUser, setDeletingUser] = React.useState<UserItem | null>(null)
   const [deleting, setDeleting] = React.useState(false)
+
+  // Route Guard: Protect User Management from unauthenticated & non-admin users
+  React.useEffect(() => {
+    if (!authLoading) {
+      if (!authenticated || authUser?.role !== "Admin") {
+        router.push("/login")
+      }
+    }
+  }, [authLoading, authenticated, authUser, router])
 
   // Fetch Roles & Users
   const fetchRoles = React.useCallback(async () => {
@@ -108,17 +122,33 @@ export default function UsersPage() {
   }, [])
 
   React.useEffect(() => {
-    fetchRoles()
-    fetchUsers()
-  }, [fetchRoles, fetchUsers])
+    if (authenticated && authUser?.role === "Admin") {
+      fetchRoles()
+      fetchUsers()
+    }
+  }, [authenticated, authUser, fetchRoles, fetchUsers])
 
   // Search filter debounce
   React.useEffect(() => {
+    if (!authenticated || authUser?.role !== "Admin") return
     const timer = setTimeout(() => {
       fetchUsers(searchQuery)
     }, 300)
     return () => clearTimeout(timer)
-  }, [searchQuery, fetchUsers])
+  }, [searchQuery, authenticated, authUser, fetchUsers])
+
+  if (authLoading || !authenticated || authUser?.role !== "Admin") {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-muted-foreground">
+        <Lock className="h-12 w-12 text-primary mb-4 animate-bounce" />
+        <h2 className="text-xl font-bold text-foreground mb-1">Akses Terbatas</h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          Halaman Manajemen Pengguna memerlukan hak akses Administrator. Mengalihkan ke halaman login...
+        </p>
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    )
+  }
 
   // Open Create Modal
   const handleOpenCreate = () => {

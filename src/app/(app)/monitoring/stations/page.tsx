@@ -1,3 +1,6 @@
+"use client"
+
+import * as React from "react"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -8,10 +11,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Plus, Search, Droplets, Bug, Anchor } from "lucide-react"
+import { Plus, Search, Droplets, Bug, Anchor, Edit, Lock } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useAuth } from "@/lib/auth-context"
 
 export default function StationsPage() {
+  const { authenticated } = useAuth()
+
   const stations = [
     { id: "ST-01", name: "Teluk Jakarta", prov: "DKI Jakarta", city: "Jakarta Utara", lat: -6.1, lng: 106.8, wqCount: 14, plkCount: 8 },
     { id: "ST-02", name: "Teluk Ambon", prov: "Maluku", city: "Ambon", lat: 3.71, lng: 128.13, wqCount: 9, plkCount: 5 },
@@ -43,10 +49,22 @@ export default function StationsPage() {
             <Bug className="mr-2 h-4 w-4 text-primary" />
             Data Plankton
           </a>
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            Tambah Stasiun
-          </Button>
+
+          {authenticated ? (
+            <Button>
+              <Plus className="mr-2 h-4 w-4" />
+              Tambah Stasiun
+            </Button>
+          ) : (
+            <a
+              href="/login"
+              className={cn(buttonVariants({ variant: "default" }), "gap-1.5 shadow-md")}
+              title="Silakan login untuk menambah data"
+            >
+              <Lock className="h-4 w-4" />
+              <span>Login untuk Olah Data</span>
+            </a>
+          )}
         </div>
       </div>
 
@@ -103,7 +121,16 @@ export default function StationsPage() {
                   </div>
                 </TableCell>
                 <TableCell className="text-right">
-                  <Button variant="ghost" size="sm">Edit</Button>
+                  {authenticated ? (
+                    <Button variant="ghost" size="sm">
+                      <Edit className="h-4 w-4 mr-1" />
+                      Edit
+                    </Button>
+                  ) : (
+                    <span className="text-xs text-muted-foreground italic flex items-center justify-end gap-1">
+                      <Lock className="h-3 w-3" /> Read-Only
+                    </span>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
