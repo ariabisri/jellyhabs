@@ -2,7 +2,7 @@ PRODUCT REQUIREMENTS DOCUMENT (PRD)
 JellyHABs-GIS
 Sistem Informasi Monitoring Harmful Algal Blooms (HABs) dan Blooming Ubur-Ubur Berbahaya Berbasis WebGIS
 
-Versi: 1.0
+Versi: 1.1 (Diperbarui: Akses Read-only Publik, Proteksi User Management & Header Session)
 
 1. Ringkasan Produk
 
@@ -12,381 +12,126 @@ Sistem dibangun sebagai aplikasi monolith menggunakan Next.js sehingga frontend,
 
 2. Tujuan Produk
 Tujuan Utama
-Menyediakan basis data monitoring pesisir yang terintegrasi.
-Menampilkan data monitoring dalam bentuk dashboard dan WebGIS.
-Mendokumentasikan kejadian HABs dan blooming ubur-ubur.
-Mendukung pengambilan keputusan berbasis data.
-Menjadi fondasi pengembangan model prediksi pada fase berikutnya.
-3. Pengguna Sistem
-Administrator
+- Menyediakan basis data monitoring pesisir yang terintegrasi.
+- Menampilkan data monitoring dalam bentuk dashboard dan WebGIS.
+- Mendokumentasikan kejadian HABs dan blooming ubur-ubur.
+- Mendukung pengambilan keputusan berbasis data.
+- Menjadi fondasi pengembangan model prediksi pada fase berikutnya.
 
-Hak akses:
+3. Pengguna Sistem & Hak Akses (Access Control Rules)
 
-Manajemen pengguna
-Manajemen data master
-Validasi dataset
-Melihat seluruh data
-Peneliti
+3.1. Pengguna Tanpa Login (Public / Guest)
+- **Hak Akses Read-Only**: Pengguna dapat melihat seluruh fitur visualisasi dan data monitoring (Dashboard, WebGIS, Stasiun Monitoring, Sampling Event, Kualitas Air, Plankton, HABs Events, dan Dataset).
+- **Pembatasan Aksi Mutasi Data**: Pengguna publik DILARANG melakukan operasi penambahan (Add), pengubahan (Edit), maupun penghapusan (Delete) data. Tombol aksi mutasi disembunyikan/dibatasi.
+- **Pembatasan Modul User Management**: Pengguna publik DILARANG mengakses modul Manajemen Pengguna (`/admin/users`) seluruhnya, termasuk akses baca (Read). Akses ke halaman ini wajib dialihkan (redirect) ke halaman `/login`.
+- **Status Header/Sidebar**: Jika tidak ada sesi login aktif, header dan sidebar TIDAK BOLEH menampilkan data pengguna default/dummy. Harus menampilkan tombol/tautan **"Masuk / Login"**.
 
-Hak akses:
+3.2. Peneliti (Researcher)
+- Hak akses penuh untuk membaca data monitoring.
+- Mengelola data monitoring (Tambah, Edit, Upload dataset, Sampling Event).
+- Mengakses Dashboard & WebGIS interaktif.
 
-Mengelola data monitoring
-Upload dataset
-Mengelola sampling event
-Mengakses dashboard
-Publik
+3.3. Administrator
+- Hak akses penuh untuk seluruh modul sistem.
+- Mengelola modul Manajemen Pengguna (`/admin/users`) seluruhnya.
+- Manajemen data master & validasi dataset.
+- Mengubah role dan status pengguna.
 
-Hak akses:
-
-Dashboard publik
-WebGIS publik
-Riwayat kejadian
 4. Ruang Lingkup MVP
 
 Fitur yang wajib tersedia:
 
-Authentication
-Login
-Logout
-Role Management
+Authentication & Access Control
+- Login & Logout
+- Session Management (HTTP-only Cookie JWT)
+- Header/Sidebar Session Dynamic Display (Nama user login vs Link Login jika Guest)
+- Public Read-Only Access (Tanpa login dapat melihat fitur monitoring)
+- Route Guard Proteksi Modul User Management (`/admin/users`)
+
 Monitoring
-Stasiun Monitoring
-Sampling Event
-Kualitas Air
-Fitoplankton
-Zooplankton
-Ubur-Ubur
+- Stasiun Monitoring
+- Sampling Event
+- Kualitas Air
+- Fitoplankton
+- Zooplankton
+- Ubur-Ubur
+
 Event
-HABs Event
-Jellyfish Bloom Event
+- HABs Event
+- Jellyfish Bloom Event
+
 Visualisasi
-Dashboard
-WebGIS
+- Dashboard
+- WebGIS
+
 Dataset
-Upload CSV
-Download CSV
-Riwayat Upload
+- Upload CSV/File
+- Download CSV/File
+- Riwayat Upload
+
 5. Teknologi
 Frontend
-Next.js 15+
-TypeScript
-Tailwind CSS
-Shadcn/UI
-React Hook Form
-Zod
+- Next.js 15+ / 16+
+- TypeScript
+- Tailwind CSS
+- Shadcn/UI
+- React Hook Form
+- Zod
+
 Backend
-Next.js Route Handlers
-Server Actions
-Drizzle ORM
+- Next.js Route Handlers
+- Server Actions
+- PostgreSQL Pool (`pg`) / Drizzle ORM
+
 Database
-PostgreSQL
-PostGIS
+- PostgreSQL 18
+- PostGIS
+
 Peta
-React Leaflet
-OpenStreetMap
+- React Leaflet / Leaflet
+- OpenStreetMap
+
 Visualisasi
-Apache ECharts
-Authentication
-Auth.js
-Deployment
-Ubuntu VPS
-Nginx
-PM2
+- Apache ECharts / ECharts for React
+
+Authentication & Session
+- JWT (jose) & HTTP-only Cookies
+- bcryptjs Password Hashing
+
 6. Modul Sistem
-Modul 1 – Authentication
-
+Modul 1 – Authentication & Session Header
 Fitur:
-
-Login
-Logout
-Session Management
-Password Reset
+- Login
+- Logout
+- Session Management
+- Password Reset
+- Header & Sidebar Session Display: Menampilkan nama user login jika terautentikasi, atau link "Masuk" jika Guest.
 
 Acceptance Criteria:
+- Pengguna berhasil login.
+- Session tersimpan aman di HTTP-only cookie.
+- Pengguna Guest tidak tercatat sebagai user tertentu saat mengakses dashboard.
+- Header menampilkan nama user asli jika login, atau link "Masuk" jika Guest.
 
-Pengguna berhasil login.
-Session tersimpan aman.
-Hak akses sesuai role.
-Modul 2 – Manajemen Pengguna
-
+Modul 2 – Manajemen Pengguna (`/admin/users`)
 Data:
-
-Nama
-Email
-Role
-Status
-
-Fitur:
-
-Tambah
-Edit
-Nonaktifkan
-
-Acceptance Criteria:
-
-Admin dapat mengelola seluruh pengguna.
-Modul 3 – Stasiun Monitoring
-
-Data:
-
-Kode Stasiun
-Nama Stasiun
-Provinsi
-Kabupaten/Kota
-Latitude
-Longitude
-Deskripsi
+- Nama
+- Email
+- Role
+- Status
 
 Fitur:
-
-CRUD
-Tampilkan pada peta
-
-Acceptance Criteria:
-
-Stasiun muncul pada WebGIS.
-Modul 4 – Sampling Event
-
-Data:
-
-Tanggal Sampling
-Lokasi
-Cuaca
-Catatan
-
-Fitur:
-
-CRUD
+- Tambah
+- Edit
+- Hapus / Nonaktifkan
 
 Acceptance Criteria:
+- HANYA Admin terautentikasi yang dapat mengakses modul ini.
+- Pengguna Guest atau non-login dialihkan ke `/login`.
 
-Event terhubung dengan stasiun monitoring.
-Modul 5 – Monitoring Kualitas Air
-
-Parameter:
-
-Suhu
-Salinitas
-pH
-Dissolved Oxygen
-Klorofil-a
-Nitrat
-Nitrit
-Fosfat
-Silikat
-TSS
-
-Fitur:
-
-Input Manual
-Upload CSV
-Grafik Tren
-
-Acceptance Criteria:
-
-Data tersimpan berdasarkan event.
-Modul 6 – Monitoring Fitoplankton
-
-Data:
-
-Spesies
-Kelimpahan
-Status Toksik
-
-Fitur:
-
-CRUD
-Upload CSV
-
-Acceptance Criteria:
-
-Data dapat divisualisasikan.
-Modul 7 – Monitoring Zooplankton
-
-Data:
-
-Spesies
-Kelimpahan
-
-Fitur:
-
-CRUD
-
-Acceptance Criteria:
-
-Data dapat difilter.
-Modul 8 – Monitoring Ubur-Ubur
-
-Data:
-
-Spesies
-Biomassa
-Densitas
-Bell Diameter
-
-Fitur:
-
-CRUD
-
-Acceptance Criteria:
-
-Data dapat divisualisasikan.
-Modul 9 – HABs Event
-
-Data:
-
-Lokasi
-Tanggal
-Tingkat Keparahan
-Deskripsi
-Foto
-
-Fitur:
-
-CRUD
-
-Acceptance Criteria:
-
-Event muncul pada peta.
-Modul 10 – Jellyfish Bloom Event
-
-Data:
-
-Lokasi
-Tanggal
-Tingkat Keparahan
-Deskripsi
-Foto
-
-Fitur:
-
-CRUD
-
-Acceptance Criteria:
-
-Event muncul pada peta.
-Modul 11 – Dashboard
-
-Komponen:
-
-Statistik
-Total Stasiun
-Total Sampling
-Total HABs
-Total Blooming Ubur-Ubur
-Grafik
-Tren Kualitas Air
-Tren Fitoplankton
-Distribusi Kejadian
-Distribusi Lokasi
-
-Acceptance Criteria:
-
-Dashboard dimuat < 3 detik.
-Modul 12 – WebGIS
-
-Layer:
-
-Stasiun Monitoring
-Kualitas Air
-HABs Event
-Jellyfish Event
-
-Fitur:
-
-Zoom
-Pan
-Filter
-Layer Toggle
-Popup Informasi
-
-Acceptance Criteria:
-
-Data spasial dapat ditampilkan dengan benar.
-Modul 13 – Dataset Management
-
-Fitur:
-
-Upload CSV
-Download CSV
-Validasi Dataset
-Riwayat Upload
-
-Acceptance Criteria:
-
-Dataset dapat ditelusuri dan diekspor kembali.
-7. Struktur Halaman
-Publik
-Beranda
-Tentang Sistem
-Dashboard Publik
-WebGIS Publik
-Riwayat Kejadian
-Peneliti
-Dashboard
-Sampling Event
-Monitoring Kualitas Air
-Monitoring Plankton
-Monitoring Ubur-Ubur
-Dataset
-Administrator
-Dashboard Admin
-User Management
-Master Data
-Audit Log
-8. Kebutuhan Non-Fungsional
-Performa
-API Response < 1 detik
-Dashboard < 3 detik
-Keamanan
-Auth.js Authentication
-Password Hashing
-HTTPS
-Input Validation dengan Zod
-Ketersediaan
-Backup Database Harian
-Uptime ≥ 99%
-Skalabilitas
-Mendukung migrasi ke Docker pada fase berikutnya
-Mendukung integrasi AI Service terpisah
-9. Roadmap Pengembangan
-Sprint 1
-Setup Next.js
-PostgreSQL
-Drizzle ORM
-Authentication
-Sprint 2
-User Management
-Monitoring Station
-Sprint 3
-Sampling Event
-Sprint 4
-Water Quality
-Sprint 5
-Phytoplankton
-Zooplankton
-Jellyfish
-Sprint 6
-HABs Event
-Jellyfish Bloom Event
-Sprint 7
-Dashboard
-Sprint 8
-WebGIS
-Sprint 9
-Dataset Management
-Sprint 10
-Deploy ke VPS
-10. Definisi Keberhasilan MVP
-
+7. Definisi Keberhasilan MVP
 MVP dianggap berhasil apabila:
-
-Data monitoring dapat diinput dan dikelola.
-Data dapat divisualisasikan pada dashboard.
-Data dapat divisualisasikan pada WebGIS.
-Pengguna dapat melakukan pencarian dan filter data.
-Sistem berhasil di-deploy pada VPS Ubuntu menggunakan Next.js, PostgreSQL/PostGIS, PM2, dan Nginx.
-Sistem siap dikembangkan menuju modul prediksi HABs dan blooming ubur-ubur pada fase berikutnya.
-Catatan Arsitektur
-
-Versi MVP menggunakan arsitektur monolith Next.js. Integrasi Docker, layanan AI Python, atau pemisahan service menjadi microservice berada di luar ruang lingkup versi pertama dan dapat dipertimbangkan pada fase pengembangan lanjutan.
+- Data monitoring dapat diakses secara publik (Read-only) tanpa login.
+- Operasi mutasi data (Add/Edit/Delete) dan Manajemen Pengguna dilindungi autentikasi.
+- Header & Sidebar mencerminkan status sesi pengguna dengan benar.
+- Sistem berhasil di-deploy pada VPS Ubuntu menggunakan Next.js, PostgreSQL/PostGIS, PM2, dan Nginx.

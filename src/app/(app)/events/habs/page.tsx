@@ -1,4 +1,7 @@
-import { Button } from "@/components/ui/button"
+"use client"
+
+import * as React from "react"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
   Table,
@@ -9,10 +12,14 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { EmptyState } from "@/components/ui/empty-state"
-import { Plus, Search, AlertTriangle, Download } from "lucide-react"
+import { Plus, Search, AlertTriangle, Download, Lock } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { cn } from "@/lib/utils"
+import { useAuth } from "@/lib/auth-context"
 
 export default function EventsPage() {
+  const { authenticated } = useAuth()
+
   const events = [
     { id: "EVT-202607-01", date: "2026-07-02", station: "Teluk Jakarta", type: "Harmful Algal Blooms", status: "Siaga", source: "Laporan Lapangan" },
     { id: "EVT-202607-02", date: "2026-07-03", station: "Pekalongan", type: "Jellyfish Bloom", status: "Waspada", source: "Laporan Masyarakat" },
@@ -20,15 +27,26 @@ export default function EventsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Kejadian (Events)</h1>
           <p className="text-muted-foreground">Catatan peringatan kejadian blooming alga berbahaya dan ubur-ubur.</p>
         </div>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          Catat Kejadian
-        </Button>
+        {authenticated ? (
+          <Button>
+            <Plus className="mr-2 h-4 w-4" />
+            Catat Kejadian
+          </Button>
+        ) : (
+          <a
+            href="/login"
+            className={cn(buttonVariants({ variant: "default" }), "gap-1.5 shadow-md")}
+            title="Silakan login untuk melaporkan kejadian"
+          >
+            <Lock className="h-4 w-4" />
+            <span>Login untuk Laporkan Kejadian</span>
+          </a>
+        )}
       </div>
 
       <div className="flex items-center gap-2">
@@ -48,7 +66,7 @@ export default function EventsPage() {
             icon={AlertTriangle}
             title="Belum ada laporan kejadian"
             description="Tidak ada catatan kejadian HABs atau blooming ubur-ubur terdeteksi."
-            actionLabel="Catat Kejadian"
+            actionLabel={authenticated ? "Catat Kejadian" : undefined}
           />
         ) : (
           <Table>

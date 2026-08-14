@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname } from "next/navigation"
 import {
   Waves,
   Anchor,
@@ -16,8 +16,11 @@ import {
   ChevronDown,
   ChevronRight,
   LogOut,
-  User,
   Shield,
+  LogIn,
+  Eye,
+  Loader2,
+  Lock,
 } from "lucide-react"
 
 import {
@@ -35,6 +38,7 @@ import {
   SidebarMenuSubItem,
   SidebarRail,
 } from "@/components/ui/sidebar"
+import { useAuth } from "@/lib/auth-context"
 
 type SubNavItem = {
   title: string
@@ -46,20 +50,13 @@ type NavItem = {
   title: string
   url: string
   icon: React.ComponentType<{ className?: string }>
+  adminOnly?: boolean
   subItems?: SubNavItem[]
 }
 
 type NavGroup = {
   title: string
   items: NavItem[]
-}
-
-interface UserSession {
-  id: string
-  full_name: string
-  email: string
-  role: string
-  avatar_url?: string | null
 }
 
 const navData: NavGroup[] = [
@@ -127,6 +124,7 @@ const navData: NavGroup[] = [
         title: "Manajemen Pengguna",
         url: "/admin/users",
         icon: Users,
+        adminOnly: true,
       },
     ],
   },
@@ -134,32 +132,13 @@ const navData: NavGroup[] = [
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
-  const router = useRouter()
-  const [currentUser, setCurrentUser] = React.useState<UserSession | null>(null)
+  const { user, loading, authenticated, logout } = useAuth()
   const [loggingOut, setLoggingOut] = React.useState(false)
 
   // Track expanded state for items with sub-items
   const [openItems, setOpenItems] = React.useState<Record<string, boolean>>({
-    "Stasiun Monitoring": true, // Default open for Monitoring group
+    "Stasiun Monitoring": true,
   })
-
-  // Fetch session user on mount
-  React.useEffect(() => {
-    async function fetchSession() {
-      try {
-        const res = await fetch("/api/auth/session")
-        if (res.ok) {
-          const data = await res.json()
-          if (data.authenticated && data.user) {
-            setCurrentUser(data.user)
-          }
-        }
-      } catch (err) {
-        console.error("Failed to load user session:", err)
-      }
-    }
-    fetchSession()
-  }, [])
 
   // Auto expand parent if current pathname is in sub-items
   React.useEffect(() => {
@@ -180,16 +159,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     setOpenItems((prev) => ({ ...prev, [title]: !prev[title] }))
   }
 
-  const handleLogout = async () => {
-    try {
-      setLoggingOut(true)
-      await fetch("/api/auth/logout", { method: "POST" })
-      router.push("/login")
-      router.refresh()
-    } catch (err) {
-      console.error("Logout failed:", err)
-      setLoggingOut(false)
-    }
+  const handleLogoutClick = async () => {
+    setLoggingOut(true)
+    await logout()
   }
 
   return (
@@ -221,6 +193,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     const hasSubItems = Boolean(item.subItems && item.subItems.length > 0)
                     const isOpen = openItems[item.title] ?? false
                     const isActive = pathname === item.url || (hasSubItems && pathname.startsWith(item.url))
+                    const isProtectedUserPage = item.adminOnly && (!authenticated || user?.role !== "Admin")
 
                     if (hasSubItems) {
                       return (
@@ -283,7 +256,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                           className="hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-all duration-200"
                         >
                           <item.icon className="size-4 text-primary/80" />
-                          <span className="font-medium text-sm">{item.title}</span>
+                          <span className="font-medium text-sm flex-1">{item.title}</span>
+                          {isProtectedUserPage && (
+                            <span title="Memerlukan Akses Admin" className="ml-auto flex items-center">
+                              <Lock className="size-3.5 text-muted-foreground opacity-70" />
+                            </span>
+                          )}
                         </SidebarMenuButton>
                       </SidebarMenuItem>
                     )
@@ -295,32 +273,65 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarContent>
       </div>
 
-      {/* Footer Profile & Logout */}
+      {/* Footer Profile & Auth Actions */}
       <div className="p-3 border-t border-sidebar-border mt-auto">
-        <div className="flex items-center gap-3 p-2 rounded-xl bg-sidebar-accent/50 mb-2">
-          <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary font-semibold text-xs">
-            <User className="size-4" />
+        {loading ? (
+          <div className="flex items-center justify-center p-4 text-xs text-muted-foreground">
+            <Loader2 className="size-4 animate-spin mr-2 text-primary" />
+            <span>Memeriksa sesi...</span>
           </div>
-          <div className="flex flex-col min-w-0 flex-1">
-            <span className="text-xs font-semibold truncate text-foreground">
-              {currentUser?.full_name || "Aria Bisri, S.Kom, MT"}
-            </span>
-            <span className="text-[10px] text-muted-foreground truncate flex items-center gap-1">
-              <Shield className="size-3 text-primary inline" />
-              {currentUser?.role || "Admin"}
-            </span>
-          </div>
-        </div>
+        ) : authenticated && user ? (
+          <>
+            <div className="flex items-center gap-3 p-2 rounded-xl bg-sidebar-accent/50 mb-2">
+              <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary font-semibold text-xs shrink-0">
+                {user.full_name.charAt(0).toUpperCase()}
+              </div>
+              <div className="flex flex-col min-w-0 flex-1">
+                <span className="text-xs font-semibold truncate text-foreground">
+                  {user.full_name}
+                </span>
+                <span className="text-[10px] text-muted-foreground truncate flex items-center gap-1">
+                  <Shield className="size-3 text-primary inline shrink-0" />
+                  {user.role}
+                </span>
+              </div>
+            </div>
 
-        <button
-          type="button"
-          onClick={handleLogout}
-          disabled={loggingOut}
-          className="flex w-full items-center justify-center gap-2 px-3 py-2 text-xs font-medium text-destructive hover:bg-destructive/10 rounded-lg transition-colors border border-destructive/20 disabled:opacity-50"
-        >
-          <LogOut className="size-3.5" />
-          <span>{loggingOut ? "Keluar..." : "Keluar (Logout)"}</span>
-        </button>
+            <button
+              type="button"
+              onClick={handleLogoutClick}
+              disabled={loggingOut}
+              className="flex w-full items-center justify-center gap-2 px-3 py-2 text-xs font-medium text-destructive hover:bg-destructive/10 rounded-lg transition-colors border border-destructive/20 disabled:opacity-50"
+            >
+              <LogOut className="size-3.5" />
+              <span>{loggingOut ? "Keluar..." : "Keluar (Logout)"}</span>
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center gap-3 p-2.5 rounded-xl bg-sidebar-accent/30 border border-sidebar-border/50 mb-2">
+              <div className="flex size-8 items-center justify-center rounded-lg bg-muted text-muted-foreground font-semibold text-xs shrink-0">
+                <Eye className="size-4 text-primary" />
+              </div>
+              <div className="flex flex-col min-w-0 flex-1">
+                <span className="text-xs font-semibold truncate text-foreground">
+                  Pengunjung (Guest)
+                </span>
+                <span className="text-[10px] text-muted-foreground truncate">
+                  Mode Publik (Read-Only)
+                </span>
+              </div>
+            </div>
+
+            <a
+              href="/login"
+              className="flex w-full items-center justify-center gap-2 px-3 py-2 text-xs font-semibold text-primary-foreground bg-primary hover:bg-primary/90 rounded-lg shadow-md transition-all duration-200"
+            >
+              <LogIn className="size-3.5" />
+              <span>Masuk / Login</span>
+            </a>
+          </>
+        )}
       </div>
 
       <SidebarRail />

@@ -1,4 +1,7 @@
-import { Button } from "@/components/ui/button"
+"use client"
+
+import * as React from "react"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
   Table,
@@ -8,9 +11,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Plus, Search, Calendar, MapPin, ChevronRight, Download } from "lucide-react"
+import { Plus, Search, Calendar, MapPin, ChevronRight, Download, Lock } from "lucide-react"
+import { cn } from "@/lib/utils"
+import { useAuth } from "@/lib/auth-context"
 
 export default function SamplingPage() {
+  const { authenticated } = useAuth()
+
   const samplings = [
     { id: "SMP-001", date: "2026-07-01", station: "Teluk Jakarta (ST-01)", weather: "Cerah", notes: "Air surut, arus tenang." },
     { id: "SMP-002", date: "2026-07-02", station: "Teluk Banten (ST-02)", weather: "Berawan", notes: "Sedikit bergelombang." },
@@ -26,15 +33,26 @@ export default function SamplingPage() {
         <span className="font-semibold text-foreground">Sampling Event</span>
       </nav>
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Sampling Event</h1>
           <p className="text-muted-foreground">Catatan jadwal dan log pengambilan sampel di stasiun monitoring.</p>
         </div>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          Tambah Sampling
-        </Button>
+        {authenticated ? (
+          <Button>
+            <Plus className="mr-2 h-4 w-4" />
+            Tambah Sampling
+          </Button>
+        ) : (
+          <a
+            href="/login"
+            className={cn(buttonVariants({ variant: "default" }), "gap-1.5 shadow-md")}
+            title="Silakan login untuk menambah data"
+          >
+            <Lock className="h-4 w-4" />
+            <span>Login untuk Olah Data</span>
+          </a>
+        )}
       </div>
 
       <div className="flex items-center gap-2">
