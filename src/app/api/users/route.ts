@@ -7,7 +7,7 @@ const createUserSchema = z.object({
   full_name: z.string().min(2, "Nama lengkap minimal 2 karakter"),
   email: z.string().email("Format email tidak valid"),
   password: z.string().min(6, "Password minimal 6 karakter"),
-  role_id: z.string().uuid("Role ID tidak valid"),
+  role_id: z.string().min(1, "Role ID tidak boleh kosong"),
   status: z.enum(["aktif", "nonaktif", "suspended"]).default("aktif"),
 })
 

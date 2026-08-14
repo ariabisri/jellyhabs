@@ -7,7 +7,7 @@ const updateUserSchema = z.object({
   full_name: z.string().min(2, "Nama lengkap minimal 2 karakter").optional(),
   email: z.string().email("Format email tidak valid").optional(),
   password: z.string().min(6, "Password minimal 6 karakter").optional().or(z.literal("")),
-  role_id: z.string().uuid("Role ID tidak valid").optional(),
+  role_id: z.string().min(1, "Role ID tidak valid").optional(),
   status: z.enum(["aktif", "nonaktif", "suspended"]).optional(),
 })
 

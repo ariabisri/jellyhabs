@@ -225,6 +225,16 @@ export default function UsersPage() {
     }
   }
 
+  const selectedRoleName = React.useMemo(() => {
+    const found = roles.find((r) => r.id === formRoleId)
+    return found ? found.name : ""
+  }, [roles, formRoleId])
+
+  const selectedStatusName = React.useMemo(() => {
+    if (!formStatus) return ""
+    return formStatus.charAt(0).toUpperCase() + formStatus.slice(1)
+  }, [formStatus])
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -285,7 +295,7 @@ export default function UsersPage() {
               <TableRow className="bg-muted/30">
                 <TableHead>Nama Lengkap</TableHead>
                 <TableHead>Email</TableHead>
-                <TableHead>Role / Otoritas</TableHead>
+                <TableHead>Role / Peran</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Aksi</TableHead>
               </TableRow>
@@ -414,15 +424,17 @@ export default function UsersPage() {
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="role">Role / Otoritas Akses</Label>
+              <Label htmlFor="role">Role / Peran</Label>
               <Select value={formRoleId} onValueChange={(val) => setFormRoleId(val || "")} disabled={saving}>
                 <SelectTrigger id="role">
-                  <SelectValue placeholder="Pilih Role" />
+                  <SelectValue placeholder="Pilih Role">
+                    {selectedRoleName || "Pilih Role"}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {roles.map((r) => (
                     <SelectItem key={r.id} value={r.id}>
-                      {r.name} {r.description ? `(${r.description})` : ""}
+                      {r.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -433,7 +445,9 @@ export default function UsersPage() {
               <Label htmlFor="status">Status Akun</Label>
               <Select value={formStatus} onValueChange={(val) => setFormStatus(val || "aktif")} disabled={saving}>
                 <SelectTrigger id="status">
-                  <SelectValue placeholder="Pilih Status" />
+                  <SelectValue placeholder="Pilih Status">
+                    {selectedStatusName || "Pilih Status"}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="aktif">Aktif</SelectItem>
