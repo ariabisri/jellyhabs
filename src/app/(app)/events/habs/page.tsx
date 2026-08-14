@@ -8,7 +8,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Plus, Search, AlertTriangle } from "lucide-react"
+import { EmptyState } from "@/components/ui/empty-state"
+import { Plus, Search, AlertTriangle, Download } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 
 export default function EventsPage() {
@@ -35,46 +36,59 @@ export default function EventsPage() {
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input type="search" placeholder="Cari kejadian..." className="pl-8" />
         </div>
+        <Button variant="outline" className="ml-auto">
+          <Download className="mr-2 h-4 w-4" />
+          Ekspor CSV
+        </Button>
       </div>
 
       <div className="rounded-md border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>ID Kejadian</TableHead>
-              <TableHead>Tanggal</TableHead>
-              <TableHead>Lokasi</TableHead>
-              <TableHead>Jenis Kejadian</TableHead>
-              <TableHead>Sumber Laporan</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Aksi</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {events.map((e) => (
-              <TableRow key={e.id}>
-                <TableCell className="font-medium">
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 text-destructive" />
-                    {e.id}
-                  </div>
-                </TableCell>
-                <TableCell>{e.date}</TableCell>
-                <TableCell>{e.station}</TableCell>
-                <TableCell>{e.type}</TableCell>
-                <TableCell>{e.source}</TableCell>
-                <TableCell>
-                  <Badge variant={e.status === "Siaga" ? "destructive" : "default"}>
-                    {e.status}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right">
-                  <Button variant="ghost" size="sm">Detail / Validasi</Button>
-                </TableCell>
+        {events.length === 0 ? (
+          <EmptyState
+            icon={AlertTriangle}
+            title="Belum ada laporan kejadian"
+            description="Tidak ada catatan kejadian HABs atau blooming ubur-ubur terdeteksi."
+            actionLabel="Catat Kejadian"
+          />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>ID Kejadian</TableHead>
+                <TableHead>Tanggal</TableHead>
+                <TableHead>Lokasi</TableHead>
+                <TableHead>Jenis Kejadian</TableHead>
+                <TableHead>Sumber Laporan</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Aksi</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {events.map((e) => (
+                <TableRow key={e.id}>
+                  <TableCell className="font-medium">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-destructive" />
+                      {e.id}
+                    </div>
+                  </TableCell>
+                  <TableCell>{e.date}</TableCell>
+                  <TableCell>{e.station}</TableCell>
+                  <TableCell>{e.type}</TableCell>
+                  <TableCell>{e.source}</TableCell>
+                  <TableCell>
+                    <Badge variant={e.status === "Siaga" ? "destructive" : "default"}>
+                      {e.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button variant="ghost" size="sm">Detail / Validasi</Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
       </div>
     </div>
   )

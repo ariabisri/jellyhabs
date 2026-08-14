@@ -8,7 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Plus, Search, Calendar, MapPin } from "lucide-react"
+import { Plus, Search, Calendar, MapPin, ChevronRight, Download } from "lucide-react"
 
 export default function SamplingPage() {
   const samplings = [
@@ -19,6 +19,13 @@ export default function SamplingPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Breadcrumb Navigation */}
+      <nav className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <span>Monitoring</span>
+        <ChevronRight className="h-3.5 w-3.5" />
+        <span className="font-semibold text-foreground">Sampling Event</span>
+      </nav>
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Sampling Event</h1>
@@ -36,6 +43,10 @@ export default function SamplingPage() {
           <Input type="search" placeholder="Cari ID / catatan..." className="pl-8" />
         </div>
         <Button variant="outline" className="ml-2">Filter Tanggal</Button>
+        <Button variant="outline" className="ml-auto">
+          <Download className="mr-2 h-4 w-4" />
+          Ekspor CSV
+        </Button>
       </div>
 
       <div className="rounded-md border bg-card">
