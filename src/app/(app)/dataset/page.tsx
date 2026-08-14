@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Button, buttonVariants } from "@/components/ui/button"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
   Table,
@@ -11,8 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Plus, Search, FileText, Download, Lock } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { Plus, Search, FileText, Download } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 
 export default function DatasetPage() {
@@ -30,20 +29,11 @@ export default function DatasetPage() {
           <h1 className="text-3xl font-bold tracking-tight">Manajemen Dataset</h1>
           <p className="text-muted-foreground">Unduh atau unggah dataset publikasi dan hasil analisis mentah.</p>
         </div>
-        {authenticated ? (
+        {authenticated && (
           <Button>
             <Plus className="mr-2 h-4 w-4" />
             Unggah Dataset
           </Button>
-        ) : (
-          <a
-            href="/login"
-            className={cn(buttonVariants({ variant: "default" }), "gap-1.5 shadow-md")}
-            title="Silakan login untuk mengunggah dataset"
-          >
-            <Lock className="h-4 w-4" />
-            <span>Login untuk Unggah Data</span>
-          </a>
         )}
       </div>
 

@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Plus, Search, Droplets, Bug, Anchor, Edit, Lock } from "lucide-react"
+import { Plus, Search, Droplets, Bug, Anchor, Edit } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-context"
 
@@ -32,7 +32,7 @@ export default function StationsPage() {
             <Anchor className="h-7 w-7 text-primary" />
             Stasiun Monitoring
           </h1>
-          <p className="text-muted-foreground">Kelola daftar stasiun lokasi pemantauan kualitas air dan plankton.</p>
+          <p className="text-muted-foreground">Daftar stasiun lokasi pemantauan kualitas air dan plankton.</p>
         </div>
         <div className="flex items-center gap-2">
           <a
@@ -50,20 +50,11 @@ export default function StationsPage() {
             Data Plankton
           </a>
 
-          {authenticated ? (
+          {authenticated && (
             <Button>
               <Plus className="mr-2 h-4 w-4" />
               Tambah Stasiun
             </Button>
-          ) : (
-            <a
-              href="/login"
-              className={cn(buttonVariants({ variant: "default" }), "gap-1.5 shadow-md")}
-              title="Silakan login untuk menambah data"
-            >
-              <Lock className="h-4 w-4" />
-              <span>Login untuk Olah Data</span>
-            </a>
           )}
         </div>
       </div>
@@ -85,7 +76,7 @@ export default function StationsPage() {
               <TableHead>Kab/Kota</TableHead>
               <TableHead>Koor. (Lat, Lng)</TableHead>
               <TableHead>Sub-Data Terkait</TableHead>
-              <TableHead className="text-right">Aksi</TableHead>
+              {authenticated && <TableHead className="text-right">Aksi</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -120,18 +111,14 @@ export default function StationsPage() {
                     </a>
                   </div>
                 </TableCell>
-                <TableCell className="text-right">
-                  {authenticated ? (
+                {authenticated && (
+                  <TableCell className="text-right">
                     <Button variant="ghost" size="sm">
                       <Edit className="h-4 w-4 mr-1" />
                       Edit
                     </Button>
-                  ) : (
-                    <span className="text-xs text-muted-foreground italic flex items-center justify-end gap-1">
-                      <Lock className="h-3 w-3" /> Read-Only
-                    </span>
-                  )}
-                </TableCell>
+                  </TableCell>
+                )}
               </TableRow>
             ))}
           </TableBody>

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Button, buttonVariants } from "@/components/ui/button"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
   Table,
@@ -11,8 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Plus, Search, Calendar, MapPin, ChevronRight, Download, Lock } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { Plus, Search, Calendar, MapPin, ChevronRight, Download } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 
 export default function SamplingPage() {
@@ -38,20 +37,11 @@ export default function SamplingPage() {
           <h1 className="text-3xl font-bold tracking-tight">Sampling Event</h1>
           <p className="text-muted-foreground">Catatan jadwal dan log pengambilan sampel di stasiun monitoring.</p>
         </div>
-        {authenticated ? (
+        {authenticated && (
           <Button>
             <Plus className="mr-2 h-4 w-4" />
             Tambah Sampling
           </Button>
-        ) : (
-          <a
-            href="/login"
-            className={cn(buttonVariants({ variant: "default" }), "gap-1.5 shadow-md")}
-            title="Silakan login untuk menambah data"
-          >
-            <Lock className="h-4 w-4" />
-            <span>Login untuk Olah Data</span>
-          </a>
         )}
       </div>
 

@@ -1,3 +1,6 @@
+"use client"
+
+import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -9,9 +12,12 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { EmptyState } from "@/components/ui/empty-state"
-import { Plus, Search, Droplets, ChevronRight, Anchor, Download } from "lucide-react"
+import { Plus, Search, Droplets, ChevronRight, Anchor, Download, Edit } from "lucide-react"
+import { useAuth } from "@/lib/auth-context"
 
 export default function WaterQualityPage() {
+  const { authenticated } = useAuth()
+
   const records = [
     { id: "WQ-101", sampling_id: "SMP-001", station: "Teluk Jakarta (ST-01)", temp: "29.5", salinity: "32", do: "5.4", ph: "8.1", chlorophyll: "12.5" },
     { id: "WQ-102", sampling_id: "SMP-002", station: "Teluk Ambon (ST-02)", temp: "28.1", salinity: "30", do: "6.0", ph: "8.2", chlorophyll: "8.2" },
@@ -37,10 +43,12 @@ export default function WaterQualityPage() {
           <h1 className="text-3xl font-bold tracking-tight">Kualitas Air</h1>
           <p className="text-muted-foreground">Parameter lingkungan laut (Suhu, Salinitas, DO, pH, Klorofil-a) per stasiun monitoring.</p>
         </div>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          Tambah Data
-        </Button>
+        {authenticated && (
+          <Button>
+            <Plus className="mr-2 h-4 w-4" />
+            Tambah Data
+          </Button>
+        )}
       </div>
 
       <div className="flex items-center gap-2">
@@ -60,7 +68,7 @@ export default function WaterQualityPage() {
             icon={Droplets}
             title="Belum ada data kualitas air"
             description="Tambahkan data parameter lingkungan laut pertama untuk stasiun monitoring."
-            actionLabel="Tambah Data"
+            actionLabel={authenticated ? "Tambah Data" : undefined}
           />
         ) : (
           <Table>
@@ -74,7 +82,7 @@ export default function WaterQualityPage() {
                 <TableHead>DO (mg/L)</TableHead>
                 <TableHead>pH</TableHead>
                 <TableHead>Klorofil-a (µg/L)</TableHead>
-                <TableHead className="text-right">Aksi</TableHead>
+                {authenticated && <TableHead className="text-right">Aksi</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -95,9 +103,14 @@ export default function WaterQualityPage() {
                   <TableCell className={Number(r.chlorophyll) > 20 ? "text-destructive font-bold" : ""}>
                     {r.chlorophyll}
                   </TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="sm">Edit</Button>
-                  </TableCell>
+                  {authenticated && (
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="sm">
+                        <Edit className="h-4 w-4 mr-1" />
+                        Edit
+                      </Button>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>

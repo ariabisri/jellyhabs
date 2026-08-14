@@ -2,7 +2,7 @@ PRODUCT REQUIREMENTS DOCUMENT (PRD)
 JellyHABs-GIS
 Sistem Informasi Monitoring Harmful Algal Blooms (HABs) dan Blooming Ubur-Ubur Berbahaya Berbasis WebGIS
 
-Versi: 1.1 (Diperbarui: Akses Read-only Publik, Proteksi User Management & Header Session)
+Versi: 1.2 (Diperbarui: Pengsembunyian Menu Sistem & Tombol Mutasi untuk Pengunjung / Guest)
 
 1. Ringkasan Produk
 
@@ -21,21 +21,15 @@ Tujuan Utama
 3. Pengguna Sistem & Hak Akses (Access Control Rules)
 
 3.1. Pengguna Tanpa Login (Public / Guest)
-- **Hak Akses Read-Only**: Pengguna dapat melihat seluruh fitur visualisasi dan data monitoring (Dashboard, WebGIS, Stasiun Monitoring, Sampling Event, Kualitas Air, Plankton, HABs Events, dan Dataset).
-- **Pembatasan Aksi Mutasi Data**: Pengguna publik DILARANG melakukan operasi penambahan (Add), pengubahan (Edit), maupun penghapusan (Delete) data. Tombol aksi mutasi disembunyikan/dibatasi.
-- **Pembatasan Modul User Management**: Pengguna publik DILARANG mengakses modul Manajemen Pengguna (`/admin/users`) seluruhnya, termasuk akses baca (Read). Akses ke halaman ini wajib dialihkan (redirect) ke halaman `/login`.
-- **Status Header/Sidebar**: Jika tidak ada sesi login aktif, header dan sidebar TIDAK BOLEH menampilkan data pengguna default/dummy. Harus menampilkan tombol/tautan **"Masuk / Login"**.
+- **Hak Akses Read-Only**: Pengguna dapat melihat fitur visualisasi dan data monitoring (Dashboard, WebGIS, Stasiun Monitoring, Sampling Event, Kualitas Air, Plankton, HABs Events, dan Dataset).
+- **Pengsembunyian Tombol Mutasi (Add/Edit/Delete)**: Seluruh tombol/link aksi mutasi seperti "Tambah Stasiun", "Tambah Sampling", "Catat Kejadian", "Unggah Dataset", "Tambah Spesies", "Edit", dan "Hapus" DISEMBUNYIKAN SEPENUHNYA dari tampilan pengunjung publik.
+- **Pengsembunyian Grup Menu "Sistem"**: Grup menu navigation **"Sistem"** (Manajemen Dataset & Manajemen Pengguna) DISEMBUNYIKAN SEPENUHNYA dari sidebar navigasi pengunjung publik.
+- **Proteksi Halaman User Management**: Pengguna publik DILARANG mengakses modul Manajemen Pengguna (`/admin/users`) seluruhnya. Jika mencoba mengakses via URL langsung, sistem otomatis mengalihkan (redirect) ke halaman `/login`.
+- **Status Header/Sidebar**: Jika tidak ada sesi login aktif, header dan sidebar menampilkan tombol/tautan **"Masuk / Login"**.
 
-3.2. Peneliti (Researcher)
-- Hak akses penuh untuk membaca data monitoring.
-- Mengelola data monitoring (Tambah, Edit, Upload dataset, Sampling Event).
-- Mengakses Dashboard & WebGIS interaktif.
-
-3.3. Administrator
-- Hak akses penuh untuk seluruh modul sistem.
-- Mengelola modul Manajemen Pengguna (`/admin/users`) seluruhnya.
-- Manajemen data master & validasi dataset.
-- Mengubah role dan status pengguna.
+3.2. Peneliti (Researcher) & Administrator (Authenticated Users)
+- **Peneliti**: Dapat melihat seluruh data, melakukan operasi penambahan/pengubahan data monitoring (Tambah/Edit Stasiun, Sampling Event, Kualitas Air, Plankton, HABs Events, Unggah Dataset), serta mengakses menu "Sistem" (Manajemen Dataset).
+- **Administrator**: Memiliki hak akses penuh untuk seluruh modul sistem, termasuk Manajemen Pengguna (`/admin/users`) dan pengaturan role/otoritas.
 
 4. Ruang Lingkup MVP
 
@@ -45,6 +39,7 @@ Authentication & Access Control
 - Login & Logout
 - Session Management (HTTP-only Cookie JWT)
 - Header/Sidebar Session Dynamic Display (Nama user login vs Link Login jika Guest)
+- Selective UI Hiding (Sembunyikan Menu Sistem & Tombol Tambah/Edit/Hapus untuk Guest)
 - Public Read-Only Access (Tanpa login dapat melihat fitur monitoring)
 - Route Guard Proteksi Modul User Management (`/admin/users`)
 
@@ -65,8 +60,8 @@ Visualisasi
 - WebGIS
 
 Dataset
-- Upload CSV/File
-- Download CSV/File
+- Upload CSV/File (Logged-in only)
+- Download CSV/File (Public)
 - Riwayat Upload
 
 5. Teknologi
@@ -110,7 +105,7 @@ Fitur:
 Acceptance Criteria:
 - Pengguna berhasil login.
 - Session tersimpan aman di HTTP-only cookie.
-- Pengguna Guest tidak tercatat sebagai user tertentu saat mengakses dashboard.
+- Pengguna Guest tidak dapat melihat tombol Tambah/Edit/Hapus maupun grup menu "Sistem".
 - Header menampilkan nama user asli jika login, atau link "Masuk" jika Guest.
 
 Modul 2 – Manajemen Pengguna (`/admin/users`)
@@ -133,5 +128,6 @@ Acceptance Criteria:
 MVP dianggap berhasil apabila:
 - Data monitoring dapat diakses secara publik (Read-only) tanpa login.
 - Operasi mutasi data (Add/Edit/Delete) dan Manajemen Pengguna dilindungi autentikasi.
+- Tampilan UI secara bersih menyembunyikan tombol aksi mutasi dan menu sensitif untuk Pengunjung / Guest.
 - Header & Sidebar mencerminkan status sesi pengguna dengan benar.
 - Sistem berhasil di-deploy pada VPS Ubuntu menggunakan Next.js, PostgreSQL/PostGIS, PM2, dan Nginx.
