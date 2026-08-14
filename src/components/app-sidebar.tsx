@@ -56,6 +56,7 @@ type NavItem = {
 
 type NavGroup = {
   title: string
+  authOnly?: boolean
   items: NavItem[]
 }
 
@@ -114,6 +115,7 @@ const navData: NavGroup[] = [
   },
   {
     title: "Sistem",
+    authOnly: true, // Only visible to logged-in users (Admin & Peneliti)
     items: [
       {
         title: "Manajemen Dataset",
@@ -140,9 +142,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     "Stasiun Monitoring": true,
   })
 
+  // Filter groups: hide "Sistem" completely if user is NOT authenticated
+  const visibleNavGroups = React.useMemo(() => {
+    return navData.filter((group) => {
+      if (group.authOnly && !authenticated) {
+        return false
+      }
+      return true
+    })
+  }, [authenticated])
+
   // Auto expand parent if current pathname is in sub-items
   React.useEffect(() => {
-    navData.forEach((group) => {
+    visibleNavGroups.forEach((group) => {
       group.items.forEach((item) => {
         if (item.subItems) {
           const isSubActive = item.subItems.some((sub) => pathname.startsWith(sub.url))
@@ -153,7 +165,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         }
       })
     })
-  }, [pathname])
+  }, [pathname, visibleNavGroups])
 
   const toggleItem = (title: string) => {
     setOpenItems((prev) => ({ ...prev, [title]: !prev[title] }))
@@ -182,7 +194,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarHeader>
 
         <SidebarContent>
-          {navData.map((group) => (
+          {visibleNavGroups.map((group) => (
             <SidebarGroup key={group.title}>
               <SidebarGroupLabel className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/80 px-3">
                 {group.title}

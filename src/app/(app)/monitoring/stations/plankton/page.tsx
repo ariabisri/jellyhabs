@@ -1,3 +1,6 @@
+"use client"
+
+import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -9,10 +12,13 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { EmptyState } from "@/components/ui/empty-state"
-import { Plus, Search, Bug, ChevronRight, Anchor, Download } from "lucide-react"
+import { Plus, Search, Bug, ChevronRight, Anchor, Download, Edit } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { useAuth } from "@/lib/auth-context"
 
 export default function PlanktonPage() {
+  const { authenticated } = useAuth()
+
   const records = [
     { id: "PLK-101", sampling_id: "SMP-001", station: "Teluk Jakarta (ST-01)", type: "Fitoplankton", species: "Pyrodinium bahamense", density: "15,000", toxicity: "Beracun" },
     { id: "PLK-102", sampling_id: "SMP-002", station: "Teluk Ambon (ST-02)", type: "Zooplankton", species: "Copepoda", density: "5,000", toxicity: "Tidak" },
@@ -38,10 +44,12 @@ export default function PlanktonPage() {
           <h1 className="text-3xl font-bold tracking-tight">Data Plankton & Ubur-ubur</h1>
           <p className="text-muted-foreground">Pencatatan kepadatan spesies penyebab HABs dan blooming ubur-ubur per stasiun monitoring.</p>
         </div>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          Tambah Spesies
-        </Button>
+        {authenticated && (
+          <Button>
+            <Plus className="mr-2 h-4 w-4" />
+            Tambah Spesies
+          </Button>
+        )}
       </div>
 
       <div className="flex items-center gap-2">
@@ -61,7 +69,7 @@ export default function PlanktonPage() {
             icon={Bug}
             title="Belum ada data plankton & ubur-ubur"
             description="Tambahkan data kelimpahan fitoplankton, zooplankton, atau ubur-ubur."
-            actionLabel="Tambah Spesies"
+            actionLabel={authenticated ? "Tambah Spesies" : undefined}
           />
         ) : (
           <Table>
@@ -74,7 +82,7 @@ export default function PlanktonPage() {
                 <TableHead>Spesies</TableHead>
                 <TableHead>Kepadatan (sel/L atau ind/m²)</TableHead>
                 <TableHead>Status Toksisitas</TableHead>
-                <TableHead className="text-right">Aksi</TableHead>
+                {authenticated && <TableHead className="text-right">Aksi</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -96,9 +104,14 @@ export default function PlanktonPage() {
                       {r.toxicity}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="sm">Edit</Button>
-                  </TableCell>
+                  {authenticated && (
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="sm">
+                        <Edit className="h-4 w-4 mr-1" />
+                        Edit
+                      </Button>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>
