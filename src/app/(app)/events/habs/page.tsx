@@ -38,14 +38,16 @@ import {
   MapPin,
   Droplets,
   Bug,
-  Info,
+  ChevronDown,
+  ChevronUp,
   CheckCircle2,
   AlertCircle,
   Loader2,
   Trash2,
   Edit,
-  ExternalLink,
-  Layers,
+  Activity,
+  ShieldAlert,
+  Compass,
 } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 
@@ -138,15 +140,15 @@ export default function EventsPage() {
   const [typeFilter, setTypeFilter] = React.useState<string>("all")
   const [statusFilter, setStatusFilter] = React.useState<string>("all")
 
+  // Expandable row state (track ID of currently expanded event)
+  const [expandedId, setExpandedId] = React.useState<string | null>(null)
+
   // Options for modal form
   const [stations, setStations] = React.useState<OptionStation[]>([])
   const [wqOptions, setWqOptions] = React.useState<OptionWaterQuality[]>([])
   const [planktonOptions, setPlanktonOptions] = React.useState<OptionPlankton[]>([])
 
-  // Modal States
-  const [isDetailOpen, setIsDetailOpen] = React.useState(false)
-  const [selectedEvent, setSelectedEvent] = React.useState<BloomEvent | null>(null)
-
+  // Modal States for Create / Edit
   const [isFormOpen, setIsFormOpen] = React.useState(false)
   const [isEditing, setIsEditing] = React.useState(false)
   const [editingId, setEditingId] = React.useState<string | null>(null)
@@ -205,6 +207,11 @@ export default function EventsPage() {
     fetchEvents()
     fetchOptions()
   }, [fetchEvents, fetchOptions])
+
+  // Toggle Row Expansion
+  const toggleRowExpansion = (id: string) => {
+    setExpandedId((prev) => (prev === id ? null : id))
+  }
 
   // Open Create Modal
   const handleOpenCreate = () => {
@@ -325,8 +332,8 @@ export default function EventsPage() {
       const res = await fetch(`/api/events/${id}`, { method: "DELETE" })
       const json = await res.json()
       if (json.success) {
-        if (selectedEvent?.id === id) {
-          setIsDetailOpen(false)
+        if (expandedId === id) {
+          setExpandedId(null)
         }
         await fetchEvents()
       } else {
@@ -521,8 +528,8 @@ export default function EventsPage() {
         </div>
       </div>
 
-      {/* Main Table */}
-      <div className="rounded-md border bg-card shadow-xs">
+      {/* Main Table with Expandable Rows */}
+      <div className="rounded-md border bg-card shadow-xs overflow-hidden">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -540,375 +547,425 @@ export default function EventsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Kode Kejadian</TableHead>
-                <TableHead>Rentang Waktu</TableHead>
+                <TableHead className="w-[160px]">Kode Kejadian</TableHead>
+                <TableHead className="w-[200px]">Rentang Waktu</TableHead>
                 <TableHead>Lokasi / Stasiun</TableHead>
                 <TableHead>Jenis Kejadian</TableHead>
-                <TableHead>Data Kualitas Air Terkait</TableHead>
-                <TableHead>Status Peringatan</TableHead>
-                <TableHead className="text-right">Aksi</TableHead>
+                <TableHead>Kualitas Air Terkait</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right w-[150px]">Aksi</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredEvents.map((e) => (
-                <TableRow key={e.id} className="hover:bg-muted/40 transition-colors">
-                  {/* Kode Kejadian */}
-                  <TableCell className="font-medium">
-                    <div className="flex items-center gap-2">
-                      <div
-                        className={`p-1.5 rounded-full ${
-                          e.alert_status === "Darurat" || e.alert_status === "Siaga"
-                            ? "bg-destructive/15 text-destructive"
-                            : e.alert_status === "Waspada"
-                            ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
-                            : "bg-primary/15 text-primary"
-                        }`}
-                      >
-                        <AlertTriangle className="h-4 w-4" />
-                      </div>
-                      <div>
-                        <span className="font-semibold text-foreground">{e.event_code}</span>
-                        <div className="text-[11px] text-muted-foreground capitalize">
-                          Tingkat: {e.severity_level}
-                        </div>
-                      </div>
-                    </div>
-                  </TableCell>
-
-                  {/* Rentang Waktu */}
-                  <TableCell>
-                    {formatDateRange(e.event_start_date, e.event_end_date)}
-                  </TableCell>
-
-                  {/* Lokasi / Stasiun */}
-                  <TableCell>
-                    <div className="flex items-center gap-1.5">
-                      <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                      <span className="font-medium text-sm">{e.station_name}</span>
-                    </div>
-                    {e.city && (
-                      <div className="text-xs text-muted-foreground pl-5">
-                        {e.city}, {e.province}
-                      </div>
-                    )}
-                  </TableCell>
-
-                  {/* Jenis Kejadian */}
-                  <TableCell>
-                    <Badge
-                      variant={e.event_type === "Harmful Algal Blooms" ? "destructive" : "secondary"}
-                      className="font-normal text-xs"
+              {filteredEvents.map((e) => {
+                const isExpanded = expandedId === e.id
+                return (
+                  <React.Fragment key={e.id}>
+                    {/* Parent Table Row */}
+                    <TableRow
+                      className={`transition-colors cursor-pointer ${
+                        isExpanded
+                          ? "bg-primary/5 hover:bg-primary/10 border-b-transparent"
+                          : "hover:bg-muted/40"
+                      }`}
+                      onClick={() => toggleRowExpansion(e.id)}
                     >
-                      {e.event_type === "Harmful Algal Blooms" ? "HABs" : "Jellyfish"}
-                    </Badge>
-                  </TableCell>
+                      {/* Kode Kejadian */}
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className={`p-1.5 rounded-full shrink-0 ${
+                              e.alert_status === "Darurat" || e.alert_status === "Siaga"
+                                ? "bg-destructive/15 text-destructive"
+                                : e.alert_status === "Waspada"
+                                ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                                : "bg-primary/15 text-primary"
+                            }`}
+                          >
+                            <AlertTriangle className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <span className="font-semibold text-foreground">{e.event_code}</span>
+                            <div className="text-[11px] text-muted-foreground capitalize">
+                              Tingkat: {e.severity_level}
+                            </div>
+                          </div>
+                        </div>
+                      </TableCell>
 
-                  {/* Data Kualitas Air Terkait */}
-                  <TableCell>
-                    {e.water_quality_records && e.water_quality_records.length > 0 ? (
-                      <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-1 text-xs font-semibold text-primary">
-                          <Droplets className="h-3.5 w-3.5" />
-                          <span>{e.water_quality_records.length} Record Terhubung</span>
+                      {/* Rentang Waktu */}
+                      <TableCell>
+                        {formatDateRange(e.event_start_date, e.event_end_date)}
+                      </TableCell>
+
+                      {/* Lokasi / Stasiun */}
+                      <TableCell>
+                        <div className="flex items-center gap-1.5">
+                          <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <span className="font-medium text-sm">{e.station_name}</span>
                         </div>
-                        <div className="text-[11px] text-muted-foreground">
-                          Chl-a: {e.water_quality_records[0].chlorophyll_a_ugl || "-"} µg/L | Suhu: {e.water_quality_records[0].temperature_c || "-"}°C
+                        {e.city && (
+                          <div className="text-xs text-muted-foreground pl-5">
+                            {e.city}, {e.province}
+                          </div>
+                        )}
+                      </TableCell>
+
+                      {/* Jenis Kejadian */}
+                      <TableCell>
+                        <Badge
+                          variant={e.event_type === "Harmful Algal Blooms" ? "destructive" : "secondary"}
+                          className="font-normal text-xs"
+                        >
+                          {e.event_type === "Harmful Algal Blooms" ? "HABs" : "Jellyfish"}
+                        </Badge>
+                      </TableCell>
+
+                      {/* Data Kualitas Air Terkait Preview */}
+                      <TableCell>
+                        {e.water_quality_records && e.water_quality_records.length > 0 ? (
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-1 text-xs font-semibold text-primary">
+                              <Droplets className="h-3.5 w-3.5" />
+                              <span>{e.water_quality_records.length} Record WQ</span>
+                            </div>
+                            <div className="text-[11px] text-muted-foreground">
+                              Chl-a: {e.water_quality_records[0].chlorophyll_a_ugl || "-"} µg/L
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground italic">Tidak ada relasi WQ</span>
+                        )}
+                      </TableCell>
+
+                      {/* Status Peringatan */}
+                      <TableCell>
+                        <Badge
+                          variant={
+                            e.alert_status === "Darurat" || e.alert_status === "Siaga"
+                              ? "destructive"
+                              : e.alert_status === "Waspada"
+                              ? "default"
+                              : "secondary"
+                          }
+                          className={
+                            e.alert_status === "Waspada"
+                              ? "bg-amber-600 hover:bg-amber-700 text-white"
+                              : undefined
+                          }
+                        >
+                          {e.alert_status}
+                        </Badge>
+                      </TableCell>
+
+                      {/* Action Buttons */}
+                      <TableCell className="text-right" onClick={(evt) => evt.stopPropagation()}>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Button
+                            variant={isExpanded ? "secondary" : "ghost"}
+                            size="sm"
+                            onClick={() => toggleRowExpansion(e.id)}
+                            className="h-8 text-xs font-medium"
+                          >
+                            {isExpanded ? (
+                              <>
+                                <ChevronUp className="h-3.5 w-3.5 mr-1 text-primary" />
+                                Tutup
+                              </>
+                            ) : (
+                              <>
+                                <ChevronDown className="h-3.5 w-3.5 mr-1 text-primary" />
+                                Detail
+                              </>
+                            )}
+                          </Button>
+
+                          {authenticated && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleOpenEdit(e)}
+                                className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDelete(e.id, e.event_code)}
+                                className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
                         </div>
-                      </div>
-                    ) : (
-                      <span className="text-xs text-muted-foreground italic">Tidak ada relasi WQ</span>
+                      </TableCell>
+                    </TableRow>
+
+                    {/* EXPANDED DETAIL ROW (Inline Drawer directly beneath parent row) */}
+                    {isExpanded && (
+                      <TableRow className="bg-muted/20 hover:bg-muted/20 border-t-0 border-b border-border/80">
+                        <TableCell colSpan={7} className="p-0">
+                          <div className="p-5 md:p-6 space-y-6 bg-gradient-to-b from-primary/[0.03] to-muted/30 border-l-4 border-l-primary animate-in fade-in-50 duration-200">
+                            {/* Detail Header Summary Bar */}
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b">
+                              <div className="flex items-center gap-3">
+                                <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                                  <Activity className="h-5 w-5" />
+                                </div>
+                                <div>
+                                  <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                                    <span>Detail Kejadian: {e.event_code}</span>
+                                    <Badge
+                                      variant={
+                                        e.alert_status === "Darurat" || e.alert_status === "Siaga"
+                                          ? "destructive"
+                                          : "default"
+                                      }
+                                      className="text-xs"
+                                    >
+                                      {e.alert_status}
+                                    </Badge>
+                                  </h3>
+                                  <p className="text-xs text-muted-foreground">
+                                    {e.event_type} • Tingkat Keparahan:{" "}
+                                    <strong className="capitalize text-foreground">{e.severity_level}</strong>
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 self-end sm:self-auto">
+                                {authenticated && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleOpenEdit(e)}
+                                    className="h-8 text-xs"
+                                  >
+                                    <Edit className="h-3.5 w-3.5 mr-1" />
+                                    Edit
+                                  </Button>
+                                )}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => toggleRowExpansion(e.id)}
+                                  className="h-8 text-xs text-muted-foreground"
+                                >
+                                  Tutup Detail
+                                </Button>
+                              </div>
+                            </div>
+
+                            {/* Grid 1: Waktu, Lokasi, dan Status Pelaporan */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                              {/* Rentang Waktu */}
+                              <div className="p-3.5 rounded-lg bg-card border shadow-2xs space-y-1">
+                                <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                                  <Calendar className="h-3.5 w-3.5 text-primary" />
+                                  Rentang Waktu Kejadian
+                                </div>
+                                <div className="text-sm font-semibold text-foreground pt-1">
+                                  <span>{e.event_start_date}</span>
+                                  <span className="mx-1.5 text-muted-foreground">s/d</span>
+                                  {e.event_end_date ? (
+                                    <span>{e.event_end_date}</span>
+                                  ) : (
+                                    <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30 text-xs">
+                                      Sedang Berlangsung
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Lokasi Stasiun */}
+                              <div className="p-3.5 rounded-lg bg-card border shadow-2xs space-y-1">
+                                <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                                  <MapPin className="h-3.5 w-3.5 text-primary" />
+                                  Lokasi Monitoring
+                                </div>
+                                <div className="text-sm font-semibold text-foreground pt-1">
+                                  {e.station_name}
+                                </div>
+                                {(e.city || e.province) && (
+                                  <div className="text-xs text-muted-foreground">
+                                    {e.city}, {e.province}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Pelapor & Validator */}
+                              <div className="p-3.5 rounded-lg bg-card border shadow-2xs space-y-1">
+                                <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                                  <ShieldAlert className="h-3.5 w-3.5 text-primary" />
+                                  Status Validasi
+                                </div>
+                                <div className="text-xs text-foreground pt-1">
+                                  Pelapor: <strong className="font-semibold">{e.reporter_name || "Petugas Lapangan"}</strong>
+                                </div>
+                                {e.validator_name ? (
+                                  <div className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-medium">
+                                    <CheckCircle2 className="h-3.5 w-3.5" />
+                                    Divalidasi oleh {e.validator_name}
+                                  </div>
+                                ) : (
+                                  <div className="text-xs text-amber-600 dark:text-amber-400 italic">
+                                    Menunggu validasi peneliti
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Grid 2: Deskripsi, Dampak & Tindakan Respon */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                              <div className="p-3.5 rounded-lg bg-card border shadow-2xs space-y-1">
+                                <h4 className="text-xs font-bold text-foreground">Kronologi & Deskripsi</h4>
+                                <p className="text-xs text-muted-foreground leading-relaxed pt-1">
+                                  {e.description || "Tidak ada deskripsi rinci yang dicatat."}
+                                </p>
+                              </div>
+
+                              <div className="p-3.5 rounded-lg bg-card border shadow-2xs space-y-1">
+                                <h4 className="text-xs font-bold text-foreground">Dampak Lingkungan & Sosial</h4>
+                                <p className="text-xs text-muted-foreground leading-relaxed pt-1">
+                                  {e.impact_assessment || "Tidak ada laporan dampak spesifik."}
+                                </p>
+                              </div>
+
+                              <div className="p-3.5 rounded-lg bg-card border shadow-2xs space-y-1">
+                                <h4 className="text-xs font-bold text-foreground">Tindakan Respon & Mitigasi</h4>
+                                <p className="text-xs text-muted-foreground leading-relaxed pt-1">
+                                  {e.response_action || "Tidak ada catatan tindakan mitigasi."}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Grid 3: Parameter Kualitas Air Terkait (Environmental Triggers) */}
+                            <div className="space-y-2.5">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <Droplets className="h-4 w-4 text-primary" />
+                                  <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">
+                                    Parameter Kualitas Air Pemicu (Environmental Triggers)
+                                  </h4>
+                                </div>
+                                <span className="text-xs text-muted-foreground">
+                                  {e.water_quality_records.length} data kualitas air terhubung
+                                </span>
+                              </div>
+
+                              {e.water_quality_records.length === 0 ? (
+                                <div className="p-3 rounded-md bg-muted/40 border text-xs text-muted-foreground italic">
+                                  Belum ada data kualitas air yang dihubungkan dengan kejadian ini.
+                                </div>
+                              ) : (
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                                  {e.water_quality_records.map((wq) => (
+                                    <div
+                                      key={wq.id}
+                                      className="p-3.5 rounded-lg border bg-card shadow-2xs space-y-2.5"
+                                    >
+                                      <div className="flex items-center justify-between font-semibold text-xs">
+                                        <span className="text-primary font-bold">{wq.record_code}</span>
+                                        {wq.notes && (
+                                          <span className="text-[11px] text-muted-foreground italic max-w-[250px] truncate">
+                                            {wq.notes}
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      <div className="grid grid-cols-5 gap-2 text-center pt-1 border-t">
+                                        <div className="p-1.5 rounded bg-muted/50">
+                                          <span className="text-muted-foreground block text-[10px]">Suhu</span>
+                                          <span className="font-bold text-xs">{wq.temperature_c ?? "-"} °C</span>
+                                        </div>
+                                        <div className="p-1.5 rounded bg-muted/50">
+                                          <span className="text-muted-foreground block text-[10px]">Salinitas</span>
+                                          <span className="font-bold text-xs">{wq.salinity_psu ?? "-"} psu</span>
+                                        </div>
+                                        <div className="p-1.5 rounded bg-muted/50">
+                                          <span className="text-muted-foreground block text-[10px]">DO</span>
+                                          <span className="font-bold text-xs">{wq.dissolved_oxygen_mgl ?? "-"} mg/L</span>
+                                        </div>
+                                        <div className="p-1.5 rounded bg-muted/50">
+                                          <span className="text-muted-foreground block text-[10px]">pH</span>
+                                          <span className="font-bold text-xs">{wq.ph ?? "-"}</span>
+                                        </div>
+                                        <div className="p-1.5 rounded bg-primary/10 border border-primary/20">
+                                          <span className="text-primary font-medium block text-[10px]">Klorofil-a</span>
+                                          <span className="font-bold text-xs text-primary">
+                                            {wq.chlorophyll_a_ugl ?? "-"} µg/L
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Grid 4: Data Spesies Plankton / Ubur-ubur Terkait */}
+                            <div className="space-y-2.5">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <Bug className="h-4 w-4 text-primary" />
+                                  <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">
+                                    Spesies Plankton & Ubur-ubur Terkait
+                                  </h4>
+                                </div>
+                                <span className="text-xs text-muted-foreground">
+                                  {e.plankton_records.length} spesies terdaftar
+                                </span>
+                              </div>
+
+                              {e.plankton_records.length === 0 ? (
+                                <div className="p-3 rounded-md bg-muted/40 border text-xs text-muted-foreground italic">
+                                  Belum ada data plankton/ubur-ubur yang dihubungkan dengan kejadian ini.
+                                </div>
+                              ) : (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                  {e.plankton_records.map((p) => (
+                                    <div
+                                      key={p.id}
+                                      className="p-3 rounded-lg border bg-card shadow-2xs flex items-center justify-between text-xs"
+                                    >
+                                      <div>
+                                        <span className="font-bold italic text-foreground text-sm">
+                                          {p.species_name}
+                                        </span>
+                                        <div className="text-[11px] text-muted-foreground mt-0.5">
+                                          {p.organism_category || "Plankton"} • Kepadatan:{" "}
+                                          <strong className="text-foreground">
+                                            {p.density_value} {p.density_unit}
+                                          </strong>
+                                        </div>
+                                      </div>
+                                      <Badge
+                                        variant={p.toxicity_status === "Beracun" ? "destructive" : "secondary"}
+                                        className="text-[10px]"
+                                      >
+                                        {p.toxicity_status || "Tidak Beracun"}
+                                      </Badge>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </TableCell>
+                      </TableRow>
                     )}
-                  </TableCell>
-
-                  {/* Status Peringatan */}
-                  <TableCell>
-                    <Badge
-                      variant={
-                        e.alert_status === "Darurat" || e.alert_status === "Siaga"
-                          ? "destructive"
-                          : e.alert_status === "Waspada"
-                          ? "default"
-                          : "secondary"
-                      }
-                      className={
-                        e.alert_status === "Waspada"
-                          ? "bg-amber-600 hover:bg-amber-700 text-white"
-                          : undefined
-                      }
-                    >
-                      {e.alert_status}
-                    </Badge>
-                  </TableCell>
-
-                  {/* Action Buttons */}
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setSelectedEvent(e)
-                          setIsDetailOpen(true)
-                        }}
-                      >
-                        <Info className="h-4 w-4 mr-1 text-primary" />
-                        Detail
-                      </Button>
-
-                      {authenticated && (
-                        <>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleOpenEdit(e)}
-                            className="text-muted-foreground hover:text-foreground"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDelete(e.id, e.event_code)}
-                            className="text-destructive hover:bg-destructive/10"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+                  </React.Fragment>
+                )
+              })}
             </TableBody>
           </Table>
         )}
       </div>
 
-      {/* DETAIL MODAL DIALOG */}
-      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          {selectedEvent && (
-            <>
-              <DialogHeader>
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-2">
-                    <div className="p-2 rounded-lg bg-destructive/15 text-destructive">
-                      <AlertTriangle className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <DialogTitle className="text-xl font-bold">{selectedEvent.event_code}</DialogTitle>
-                      <DialogDescription>
-                        {selectedEvent.event_type} • Stasiun {selectedEvent.station_name}
-                      </DialogDescription>
-                    </div>
-                  </div>
-                  <Badge
-                    variant={
-                      selectedEvent.alert_status === "Darurat" || selectedEvent.alert_status === "Siaga"
-                        ? "destructive"
-                        : "default"
-                    }
-                    className="text-sm px-3 py-1"
-                  >
-                    Status: {selectedEvent.alert_status}
-                  </Badge>
-                </div>
-              </DialogHeader>
-
-              <div className="space-y-6 py-4">
-                {/* Informasi Rentang Waktu & Lokasi */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-lg bg-muted/50 border">
-                  <div className="space-y-1">
-                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                      Rentang Waktu Kejadian
-                    </div>
-                    <div className="text-sm font-semibold text-foreground flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-primary" />
-                      <span>{selectedEvent.event_start_date}</span>
-                      <span>s/d</span>
-                      <span>
-                        {selectedEvent.event_end_date ? (
-                          selectedEvent.event_end_date
-                        ) : (
-                          <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30 text-xs">
-                            Sedang Berlangsung
-                          </Badge>
-                        )}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                      Lokasi Stasiun
-                    </div>
-                    <div className="text-sm font-semibold text-foreground flex items-center gap-2">
-                      <MapPin className="h-4 w-4 text-primary" />
-                      <span>{selectedEvent.station_name}</span>
-                    </div>
-                    {selectedEvent.city && (
-                      <div className="text-xs text-muted-foreground">
-                        {selectedEvent.city}, {selectedEvent.province}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Deskripsi Kronologi & Dampak */}
-                <div className="space-y-3">
-                  <div>
-                    <h4 className="text-sm font-semibold text-foreground">Kronologi & Deskripsi</h4>
-                    <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-                      {selectedEvent.description || "Tidak ada deskripsi rinci."}
-                    </p>
-                  </div>
-
-                  {selectedEvent.impact_assessment && (
-                    <div>
-                      <h4 className="text-sm font-semibold text-foreground">Dampak Lingkungan & Sosial</h4>
-                      <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-                        {selectedEvent.impact_assessment}
-                      </p>
-                    </div>
-                  )}
-
-                  {selectedEvent.response_action && (
-                    <div>
-                      <h4 className="text-sm font-semibold text-foreground">Tindakan Respon & Mitigasi</h4>
-                      <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-                        {selectedEvent.response_action}
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* RELASI PARAMETER KUALITAS AIR */}
-                <div className="space-y-3 border-t pt-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Droplets className="h-5 w-5 text-primary" />
-                      <h4 className="text-sm font-bold text-foreground">
-                        Parameter Kualitas Air Terkait (Environmental Triggers)
-                      </h4>
-                    </div>
-                    <Badge variant="outline" className="text-xs">
-                      {selectedEvent.water_quality_records.length} Data
-                    </Badge>
-                  </div>
-
-                  {selectedEvent.water_quality_records.length === 0 ? (
-                    <p className="text-xs text-muted-foreground italic p-3 bg-muted/30 rounded-md">
-                      Belum ada data kualitas air yang dihubungkan dengan kejadian ini.
-                    </p>
-                  ) : (
-                    <div className="grid grid-cols-1 gap-2.5">
-                      {selectedEvent.water_quality_records.map((wq) => (
-                        <div key={wq.id} className="p-3 rounded-lg border bg-card text-xs space-y-2">
-                          <div className="flex items-center justify-between font-semibold">
-                            <span className="text-primary">{wq.record_code}</span>
-                            {wq.notes && <span className="text-muted-foreground text-[11px] italic">{wq.notes}</span>}
-                          </div>
-                          <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 text-center pt-1 border-t">
-                            <div className="p-1.5 rounded bg-muted/50">
-                              <span className="text-muted-foreground block text-[10px]">Suhu</span>
-                              <span className="font-bold">{wq.temperature_c ?? "-"} °C</span>
-                            </div>
-                            <div className="p-1.5 rounded bg-muted/50">
-                              <span className="text-muted-foreground block text-[10px]">Salinitas</span>
-                              <span className="font-bold">{wq.salinity_psu ?? "-"} psu</span>
-                            </div>
-                            <div className="p-1.5 rounded bg-muted/50">
-                              <span className="text-muted-foreground block text-[10px]">DO</span>
-                              <span className="font-bold">{wq.dissolved_oxygen_mgl ?? "-"} mg/L</span>
-                            </div>
-                            <div className="p-1.5 rounded bg-muted/50">
-                              <span className="text-muted-foreground block text-[10px]">pH</span>
-                              <span className="font-bold">{wq.ph ?? "-"}</span>
-                            </div>
-                            <div className="p-1.5 rounded bg-muted/50 border border-primary/20">
-                              <span className="text-primary font-medium block text-[10px]">Klorofil-a</span>
-                              <span className="font-bold text-primary">{wq.chlorophyll_a_ugl ?? "-"} µg/L</span>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* RELASI PLANKTON / UBUR-UBUR */}
-                <div className="space-y-3 border-t pt-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Bug className="h-5 w-5 text-primary" />
-                      <h4 className="text-sm font-bold text-foreground">
-                        Spesies Plankton & Ubur-ubur Terkait
-                      </h4>
-                    </div>
-                    <Badge variant="outline" className="text-xs">
-                      {selectedEvent.plankton_records.length} Spesies
-                    </Badge>
-                  </div>
-
-                  {selectedEvent.plankton_records.length === 0 ? (
-                    <p className="text-xs text-muted-foreground italic p-3 bg-muted/30 rounded-md">
-                      Belum ada data spesies plankton/ubur-ubur yang dihubungkan.
-                    </p>
-                  ) : (
-                    <div className="grid grid-cols-1 gap-2">
-                      {selectedEvent.plankton_records.map((p) => (
-                        <div key={p.id} className="p-2.5 rounded-lg border bg-card flex items-center justify-between text-xs">
-                          <div>
-                            <span className="font-bold italic text-foreground">{p.species_name}</span>
-                            <div className="text-[11px] text-muted-foreground">
-                              {p.organism_category || "Plankton"} • Kepadatan: {p.density_value} {p.density_unit}
-                            </div>
-                          </div>
-                          <Badge variant={p.toxicity_status === "Beracun" ? "destructive" : "secondary"}>
-                            {p.toxicity_status || "Tidak Beracun"}
-                          </Badge>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Pelapor & Validator */}
-                <div className="flex items-center justify-between text-xs text-muted-foreground border-t pt-3">
-                  <div>
-                    Pelapor: <span className="font-semibold text-foreground">{selectedEvent.reporter_name || "Admin"}</span>
-                  </div>
-                  {selectedEvent.validator_name && (
-                    <div className="flex items-center gap-1 text-emerald-600">
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                      <span>Divalidasi oleh {selectedEvent.validator_name}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsDetailOpen(false)}>
-                  Tutup
-                </Button>
-                {authenticated && (
-                  <Button
-                    onClick={() => {
-                      setIsDetailOpen(false)
-                      handleOpenEdit(selectedEvent)
-                    }}
-                  >
-                    <Edit className="h-4 w-4 mr-2" />
-                    Edit Kejadian
-                  </Button>
-                )}
-              </DialogFooter>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* CREATE / EDIT EVENT FORM MODAL */}
+      {/* CREATE / EDIT EVENT FORM MODAL (Only for Adding / Editing Data) */}
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
