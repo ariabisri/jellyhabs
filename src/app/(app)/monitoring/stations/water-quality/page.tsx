@@ -525,8 +525,14 @@ export default function WaterQualityPage() {
 
         <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
           <Select value={stationFilter} onValueChange={(val) => setStationFilter(val || "all")}>
-            <SelectTrigger className="w-[170px]">
-              <SelectValue placeholder="Pilih Stasiun" />
+            <SelectTrigger className="w-[190px]">
+              <SelectValue placeholder="Pilih Stasiun">
+                {stationFilter === "all"
+                  ? "Semua Stasiun"
+                  : stationOptions.find((st) => st.id === stationFilter)
+                  ? `${stationOptions.find((st) => st.id === stationFilter)?.station_code} - ${stationOptions.find((st) => st.id === stationFilter)?.name}`
+                  : undefined}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Semua Stasiun</SelectItem>
@@ -540,7 +546,15 @@ export default function WaterQualityPage() {
 
           <Select value={chlFilter} onValueChange={(val) => setChlFilter(val || "all")}>
             <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Klorofil-a" />
+              <SelectValue placeholder="Klorofil-a">
+                {chlFilter === "all"
+                  ? "Semua Klorofil-a"
+                  : chlFilter === "warning"
+                  ? "Waspada (≥ 20 µg/L)"
+                  : chlFilter === "bloom"
+                  ? "Blooming (≥ 40 µg/L)"
+                  : undefined}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Semua Klorofil-a</SelectItem>
@@ -727,7 +741,12 @@ export default function WaterQualityPage() {
                     }
                   >
                     <SelectTrigger id="sampling_event_id" className="w-full">
-                      <SelectValue placeholder="Pilih Sampling Event" />
+                      <SelectValue placeholder="Pilih Sampling Event">
+                        {(() => {
+                          const opt = samplingOptions.find((o) => o.id === formData.sampling_event_id)
+                          return opt ? `${opt.sampling_code} — ${opt.station_name} (${formatIndoDate(opt.sampling_date)})` : undefined
+                        })()}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {samplingOptions.map((opt) => (
