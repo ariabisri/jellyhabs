@@ -47,7 +47,6 @@ import {
   Edit,
   Activity,
   ShieldAlert,
-  Compass,
 } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 
@@ -204,8 +203,11 @@ export default function EventsPage() {
   }, [])
 
   React.useEffect(() => {
-    fetchEvents()
-    fetchOptions()
+    const timer = setTimeout(() => {
+      fetchEvents()
+      fetchOptions()
+    }, 0)
+    return () => clearTimeout(timer)
   }, [fetchEvents, fetchOptions])
 
   // Toggle Row Expansion
