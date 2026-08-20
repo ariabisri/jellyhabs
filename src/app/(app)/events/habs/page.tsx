@@ -967,312 +967,347 @@ export default function EventsPage() {
         )}
       </div>
 
-      {/* CREATE / EDIT EVENT FORM MODAL (Only for Adding / Editing Data) */}
+      {/* CREATE / EDIT EVENT FORM MODAL */}
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto p-6">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold">
               {isEditing ? "Edit Catatan Kejadian" : "Catat Kejadian Blooming Baru"}
             </DialogTitle>
             <DialogDescription>
-              Catat kejadian HABs atau ledakan ubur-ubur lengkap dengan rentang waktu kejadian dan keterkaitan data kualitas air.
+              Catat kejadian HABs atau ledakan ubur-ubur lengkap dengan rentang waktu kejadian dan keterkaitan data kualitas air serta plankton.
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleSubmit} className="space-y-4 py-2">
+          <form onSubmit={handleSubmit} className="space-y-5 py-2">
             {formError && (
-              <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md flex items-center gap-2">
+              <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg flex items-center gap-2">
                 <AlertCircle className="h-4 w-4 shrink-0" />
                 <span>{formError}</span>
               </div>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Kode Kejadian */}
-              <div className="space-y-1.5">
-                <Label htmlFor="event_code">Kode Kejadian *</Label>
-                <Input
-                  id="event_code"
-                  required
-                  value={formData.event_code}
-                  onChange={(e) => setFormData({ ...formData, event_code: e.target.value })}
-                  placeholder="Contoh: EVT-202607-01"
-                  disabled={isEditing}
-                />
-              </div>
-
-              {/* Stasiun Monitoring */}
-              <div className="space-y-1.5">
-                <Label htmlFor="station_id">Stasiun Monitoring *</Label>
-                <Select
-                  value={formData.station_id}
-                  onValueChange={(val) => val && setFormData((prev) => ({ ...prev, station_id: val }))}
-                >
-                  <SelectTrigger id="station_id">
-                    <SelectValue placeholder="Pilih Stasiun" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {stations.map((st) => (
-                      <SelectItem key={st.id} value={st.id}>
-                        {st.name} ({st.station_code})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* Rentang Waktu: Mulai & Selesai */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 rounded-lg border bg-muted/30">
-              <div className="space-y-1.5">
-                <Label htmlFor="event_start_date">Tanggal Mulai Kejadian *</Label>
-                <Input
-                  id="event_start_date"
-                  type="date"
-                  required
-                  value={formData.event_start_date}
-                  onChange={(e) => setFormData({ ...formData, event_start_date: e.target.value })}
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="event_end_date">Tanggal Selesai</Label>
-                  <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.is_ongoing}
-                      onChange={(e) => setFormData({ ...formData, is_ongoing: e.target.checked })}
-                      className="rounded border-gray-300 text-primary focus:ring-primary h-3.5 w-3.5"
-                    />
-                    Masih berlangsung
-                  </label>
+            {/* Bagian 1: Informasi Dasar Kejadian */}
+            <div className="space-y-3">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                1. Informasi Utama Kejadian
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Kode Kejadian */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="event_code">Kode Kejadian *</Label>
+                  <Input
+                    id="event_code"
+                    required
+                    value={formData.event_code}
+                    onChange={(e) => setFormData({ ...formData, event_code: e.target.value })}
+                    placeholder="Contoh: EVT-202607-01"
+                    disabled={isEditing}
+                  />
                 </div>
-                <Input
-                  id="event_end_date"
-                  type="date"
-                  disabled={formData.is_ongoing}
-                  value={formData.is_ongoing ? "" : formData.event_end_date}
-                  onChange={(e) => setFormData({ ...formData, event_end_date: e.target.value })}
-                  placeholder="Kosongkan jika masih berlangsung"
-                />
+
+                {/* Stasiun Monitoring (Hanya Menampilkan Nama Stasiun) */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="station_id">Stasiun Monitoring *</Label>
+                  <Select
+                    value={formData.station_id}
+                    onValueChange={(val) => val && setFormData((prev) => ({ ...prev, station_id: val }))}
+                  >
+                    <SelectTrigger id="station_id" className="w-full">
+                      <SelectValue placeholder="Pilih Stasiun Monitoring">
+                        {stations.find((st) => st.id === formData.station_id)?.name}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {stations.map((st) => (
+                        <SelectItem key={st.id} value={st.id}>
+                          {st.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Jenis Kejadian, Tingkat Keparahan, Status Peringatan */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="event_type">Jenis Kejadian</Label>
+                  <Select
+                    value={formData.event_type}
+                    onValueChange={(val) =>
+                      val &&
+                      setFormData((prev) => ({
+                        ...prev,
+                        event_type: val as "Harmful Algal Blooms" | "Jellyfish Bloom",
+                      }))
+                    }
+                  >
+                    <SelectTrigger id="event_type" className="w-full">
+                      <SelectValue placeholder="Pilih Jenis Kejadian">
+                        {formData.event_type === "Harmful Algal Blooms"
+                          ? "Harmful Algal Blooms (HABs)"
+                          : formData.event_type === "Jellyfish Bloom"
+                          ? "Jellyfish Bloom"
+                          : undefined}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Harmful Algal Blooms">Harmful Algal Blooms (HABs)</SelectItem>
+                      <SelectItem value="Jellyfish Bloom">Jellyfish Bloom</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="severity_level">Tingkat Keparahan</Label>
+                  <Select
+                    value={formData.severity_level}
+                    onValueChange={(val) =>
+                      val &&
+                      setFormData((prev) => ({
+                        ...prev,
+                        severity_level: val as "rendah" | "sedang" | "tinggi" | "kritis",
+                      }))
+                    }
+                  >
+                    <SelectTrigger id="severity_level" className="w-full">
+                      <SelectValue placeholder="Pilih Keparahan">
+                        {formData.severity_level
+                          ? formData.severity_level.charAt(0).toUpperCase() + formData.severity_level.slice(1)
+                          : undefined}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="rendah">Rendah</SelectItem>
+                      <SelectItem value="sedang">Sedang</SelectItem>
+                      <SelectItem value="tinggi">Tinggi</SelectItem>
+                      <SelectItem value="kritis">Kritis</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="alert_status">Status Peringatan</Label>
+                  <Select
+                    value={formData.alert_status}
+                    onValueChange={(val) =>
+                      val &&
+                      setFormData((prev) => ({
+                        ...prev,
+                        alert_status: val as "Normal" | "Waspada" | "Siaga" | "Darurat",
+                      }))
+                    }
+                  >
+                    <SelectTrigger id="alert_status" className="w-full">
+                      <SelectValue placeholder="Pilih Status">
+                        {formData.alert_status || undefined}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Normal">Normal</SelectItem>
+                      <SelectItem value="Waspada">Waspada</SelectItem>
+                      <SelectItem value="Siaga">Siaga</SelectItem>
+                      <SelectItem value="Darurat">Darurat</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
 
-            {/* Jenis Kejadian & Status */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="event_type">Jenis Kejadian</Label>
-                <Select
-                  value={formData.event_type}
-                  onValueChange={(val) =>
-                    val &&
-                    setFormData((prev) => ({
-                      ...prev,
-                      event_type: val as "Harmful Algal Blooms" | "Jellyfish Bloom",
-                    }))
-                  }
-                >
-                  <SelectTrigger id="event_type">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Harmful Algal Blooms">Harmful Algal Blooms (HABs)</SelectItem>
-                    <SelectItem value="Jellyfish Bloom">Jellyfish Bloom</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            {/* Bagian 2: Rentang Waktu Kejadian */}
+            <div className="space-y-2 p-4 rounded-xl border bg-muted/20">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                2. Periode Waktu Kejadian
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="event_start_date">Tanggal Mulai Kejadian *</Label>
+                  <Input
+                    id="event_start_date"
+                    type="date"
+                    required
+                    value={formData.event_start_date}
+                    onChange={(e) => setFormData({ ...formData, event_start_date: e.target.value })}
+                  />
+                </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="severity_level">Tingkat Keparahan</Label>
-                <Select
-                  value={formData.severity_level}
-                  onValueChange={(val) =>
-                    val &&
-                    setFormData((prev) => ({
-                      ...prev,
-                      severity_level: val as "rendah" | "sedang" | "tinggi" | "kritis",
-                    }))
-                  }
-                >
-                  <SelectTrigger id="severity_level">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="rendah">Rendah</SelectItem>
-                    <SelectItem value="sedang">Sedang</SelectItem>
-                    <SelectItem value="tinggi">Tinggi</SelectItem>
-                    <SelectItem value="kritis">Kritis</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="alert_status">Status Peringatan</Label>
-                <Select
-                  value={formData.alert_status}
-                  onValueChange={(val) =>
-                    val &&
-                    setFormData((prev) => ({
-                      ...prev,
-                      alert_status: val as "Normal" | "Waspada" | "Siaga" | "Darurat",
-                    }))
-                  }
-                >
-                  <SelectTrigger id="alert_status">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Normal">Normal</SelectItem>
-                    <SelectItem value="Waspada">Waspada</SelectItem>
-                    <SelectItem value="Siaga">Siaga</SelectItem>
-                    <SelectItem value="Darurat">Darurat</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="event_end_date">Tanggal Selesai</Label>
+                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer font-medium hover:text-foreground">
+                      <input
+                        type="checkbox"
+                        checked={formData.is_ongoing}
+                        onChange={(e) => setFormData({ ...formData, is_ongoing: e.target.checked })}
+                        className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4"
+                      />
+                      Masih berlangsung
+                    </label>
+                  </div>
+                  <Input
+                    id="event_end_date"
+                    type="date"
+                    disabled={formData.is_ongoing}
+                    value={formData.is_ongoing ? "" : formData.event_end_date}
+                    onChange={(e) => setFormData({ ...formData, event_end_date: e.target.value })}
+                    placeholder="Kosongkan jika masih berlangsung"
+                  />
+                </div>
               </div>
             </div>
 
-            {/* KAITKAN DATA KUALITAS AIR */}
-            <div className="space-y-2 border-t pt-3">
-              <div className="flex items-center justify-between">
-                <Label className="flex items-center gap-1.5 font-bold text-foreground">
-                  <Droplets className="h-4 w-4 text-primary" />
-                  Kaitkan Data Kualitas Air (Water Quality Triggers)
-                </Label>
-                <span className="text-xs text-muted-foreground">
-                  {formData.water_quality_ids.length} dipilih
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Pilih record kualitas air di stasiun terkait yang memicu atau mencatat kondisi perairan saat kejadian:
-              </p>
-
-              <div className="max-h-36 overflow-y-auto space-y-1.5 border rounded-md p-2 bg-card">
-                {wqOptions.length === 0 ? (
-                  <p className="text-xs text-muted-foreground italic text-center py-2">
-                    Belum ada data kualitas air di database.
+            {/* Bagian 3: Keterkaitan Data Lapangan (Kualitas Air & Plankton side-by-side) */}
+            <div className="space-y-3 pt-2">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                3. Keterkaitan Data Pemantauan Lapangan
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Kaitkan Data Kualitas Air */}
+                <div className="space-y-2 p-3.5 rounded-xl border bg-card shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <Label className="flex items-center gap-1.5 font-bold text-foreground text-xs">
+                      <Droplets className="h-4 w-4 text-primary shrink-0" />
+                      Data Kualitas Air ({formData.water_quality_ids.length} dipilih)
+                    </Label>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Parameter pemicu (suhu, DO, klorofil-a):
                   </p>
-                ) : (
-                  wqOptions.map((wq) => {
-                    const isChecked = formData.water_quality_ids.includes(wq.id)
-                    return (
-                      <label
-                        key={wq.id}
-                        className={`flex items-center justify-between p-2 rounded-md border text-xs cursor-pointer transition-colors ${
-                          isChecked ? "bg-primary/10 border-primary/40 font-medium" : "hover:bg-muted/50"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={() => toggleWqSelection(wq.id)}
-                            className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4"
-                          />
-                          <div>
-                            <span className="font-semibold text-foreground">{wq.record_code}</span>
-                            <span className="text-muted-foreground ml-2">({wq.station_name})</span>
-                          </div>
-                        </div>
-                        <div className="text-muted-foreground">
-                          Chl-a: <strong className="text-primary">{wq.chlorophyll_a_ugl} µg/L</strong> | Suhu: {wq.temperature_c}°C | DO: {wq.dissolved_oxygen_mgl} mg/L
-                        </div>
-                      </label>
-                    )
-                  })
-                )}
-              </div>
-            </div>
 
-            {/* KAITKAN DATA PLANKTON / UBUR-UBUR */}
-            <div className="space-y-2 border-t pt-3">
-              <div className="flex items-center justify-between">
-                <Label className="flex items-center gap-1.5 font-bold text-foreground">
-                  <Bug className="h-4 w-4 text-primary" />
-                  Kaitkan Data Spesies Plankton / Ubur-ubur
-                </Label>
-                <span className="text-xs text-muted-foreground">
-                  {formData.plankton_ids.length} dipilih
-                </span>
-              </div>
+                  <div className="max-h-44 overflow-y-auto space-y-1.5 border rounded-lg p-2 bg-muted/20">
+                    {wqOptions.length === 0 ? (
+                      <p className="text-xs text-muted-foreground italic text-center py-4">
+                        Belum ada data kualitas air di database.
+                      </p>
+                    ) : (
+                      wqOptions.map((wq) => {
+                        const isChecked = formData.water_quality_ids.includes(wq.id)
+                        return (
+                          <label
+                            key={wq.id}
+                            className={`flex flex-col gap-1 p-2 rounded-lg border text-xs cursor-pointer transition-colors ${
+                              isChecked ? "bg-primary/10 border-primary/40 font-medium" : "hover:bg-muted/50 bg-background"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => toggleWqSelection(wq.id)}
+                                  className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4 shrink-0"
+                                />
+                                <span className="font-semibold text-foreground">{wq.record_code}</span>
+                              </div>
+                              <span className="text-[11px] text-muted-foreground">{wq.station_name}</span>
+                            </div>
+                            <div className="text-[11px] text-muted-foreground pl-6">
+                              Chl-a: <strong className="text-primary">{wq.chlorophyll_a_ugl} µg/L</strong> | Suhu: {wq.temperature_c}°C | DO: {wq.dissolved_oxygen_mgl} mg/L
+                            </div>
+                          </label>
+                        )
+                      })
+                    )}
+                  </div>
+                </div>
 
-              <div className="max-h-36 overflow-y-auto space-y-1.5 border rounded-md p-2 bg-card">
-                {planktonOptions.length === 0 ? (
-                  <p className="text-xs text-muted-foreground italic text-center py-2">
-                    Belum ada data plankton di database.
+                {/* Kaitkan Data Plankton / Ubur-ubur */}
+                <div className="space-y-2 p-3.5 rounded-xl border bg-card shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <Label className="flex items-center gap-1.5 font-bold text-foreground text-xs">
+                      <Bug className="h-4 w-4 text-primary shrink-0" />
+                      Data Plankton / Ubur-ubur ({formData.plankton_ids.length} dipilih)
+                    </Label>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Spesies tercatat saat periode kejadian:
                   </p>
-                ) : (
-                  planktonOptions.map((p) => {
-                    const isChecked = formData.plankton_ids.includes(p.id)
-                    return (
-                      <label
-                        key={p.id}
-                        className={`flex items-center justify-between p-2 rounded-md border text-xs cursor-pointer transition-colors ${
-                          isChecked ? "bg-primary/10 border-primary/40 font-medium" : "hover:bg-muted/50"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={() => togglePlanktonSelection(p.id)}
-                            className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4"
-                          />
-                          <div>
-                            <span className="font-semibold italic text-foreground">{p.scientific_name}</span>
-                            <span className="text-muted-foreground ml-2">({p.record_code})</span>
-                          </div>
-                        </div>
-                        <Badge variant={p.toxicity_status === "Beracun" ? "destructive" : "outline"} className="text-[10px]">
-                          {p.toxicity_status}
-                        </Badge>
-                      </label>
-                    )
-                  })
-                )}
+
+                  <div className="max-h-44 overflow-y-auto space-y-1.5 border rounded-lg p-2 bg-muted/20">
+                    {planktonOptions.length === 0 ? (
+                      <p className="text-xs text-muted-foreground italic text-center py-4">
+                        Belum ada data plankton di database.
+                      </p>
+                    ) : (
+                      planktonOptions.map((p) => {
+                        const isChecked = formData.plankton_ids.includes(p.id)
+                        return (
+                          <label
+                            key={p.id}
+                            className={`flex items-center justify-between p-2 rounded-lg border text-xs cursor-pointer transition-colors ${
+                              isChecked ? "bg-primary/10 border-primary/40 font-medium" : "hover:bg-muted/50 bg-background"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => togglePlanktonSelection(p.id)}
+                                className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4 shrink-0"
+                              />
+                              <div>
+                                <span className="font-semibold italic text-foreground">{p.scientific_name}</span>
+                                <span className="text-muted-foreground ml-1.5 text-[11px]">({p.record_code})</span>
+                              </div>
+                            </div>
+                            <Badge variant={p.toxicity_status === "Beracun" ? "destructive" : "outline"} className="text-[10px] shrink-0">
+                              {p.toxicity_status}
+                            </Badge>
+                          </label>
+                        )
+                      })
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Deskripsi, Dampak, Respon */}
-            <div className="space-y-3 border-t pt-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="description">Kronologi & Deskripsi Kejadian</Label>
-                <textarea
-                  id="description"
-                  rows={2}
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Catatan kronologi kejadian, perubahan warna air laut, luas area, dll."
-                  className="w-full text-xs p-2 rounded-md border bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
+            {/* Bagian 4: Deskripsi, Dampak & Respon */}
+            <div className="space-y-3 pt-2">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                4. Deskripsi, Dampak & Tindakan Respon
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="description">Kronologi & Deskripsi</Label>
+                  <textarea
+                    id="description"
+                    rows={3}
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    placeholder="Catatan kronologi kejadian, perubahan warna air laut, luas area..."
+                    className="w-full text-xs p-2.5 rounded-lg border bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="impact_assessment">Dampak Lingkungan & Masyarakat</Label>
-                <textarea
-                  id="impact_assessment"
-                  rows={2}
-                  value={formData.impact_assessment}
-                  onChange={(e) => setFormData({ ...formData, impact_assessment: e.target.value })}
-                  placeholder="Potensi keracunan kerang, gangguan pariwisata, kematian ikan, dll."
-                  className="w-full text-xs p-2 rounded-md border bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="impact_assessment">Dampak Lingkungan</Label>
+                  <textarea
+                    id="impact_assessment"
+                    rows={3}
+                    value={formData.impact_assessment}
+                    onChange={(e) => setFormData({ ...formData, impact_assessment: e.target.value })}
+                    placeholder="Potensi keracunan kerang, gangguan wisata, kematian ikan..."
+                    className="w-full text-xs p-2.5 rounded-lg border bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="response_action">Tindakan Respon & Mitigasi</Label>
-                <textarea
-                  id="response_action"
-                  rows={2}
-                  value={formData.response_action}
-                  onChange={(e) => setFormData({ ...formData, response_action: e.target.value })}
-                  placeholder="Himbauan publik, penutupan pantai sementara, pengambilan sampel lanjutan."
-                  className="w-full text-xs p-2 rounded-md border bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary"
-                />
+                <div className="space-y-1.5">
+                  <Label htmlFor="response_action">Tindakan Mitigasi</Label>
+                  <textarea
+                    id="response_action"
+                    rows={3}
+                    value={formData.response_action}
+                    onChange={(e) => setFormData({ ...formData, response_action: e.target.value })}
+                    placeholder="Himbauan publik, penutupan pantai sementara, sampling lanjutan..."
+                    className="w-full text-xs p-2.5 rounded-lg border bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
               </div>
             </div>
 
-            <DialogFooter className="pt-3">
+            <DialogFooter className="pt-4 border-t gap-2 sm:gap-0">
               <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)}>
                 Batal
               </Button>
