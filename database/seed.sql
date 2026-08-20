@@ -49,10 +49,10 @@ INSERT INTO sampling_event_members (sampling_event_id, user_id, role_in_sampling
 ON CONFLICT (sampling_event_id, user_id) DO NOTHING;
 
 -- 7. WATER QUALITY RECORDS
-INSERT INTO water_quality_records (record_code, sampling_event_id, temperature_c, salinity_psu, dissolved_oxygen_mgl, ph, chlorophyll_a_ugl, notes) VALUES
-('WQ-101', '44444444-4444-4444-4444-444444444441', 29.50, 32.00, 5.40, 8.10, 12.50, 'Kualitas air normal'),
-('WQ-102', '44444444-4444-4444-4444-444444444442', 28.10, 30.00, 6.00, 8.20, 8.20, 'Kondisi stabil'),
-('WQ-103', '44444444-4444-4444-4444-444444444443', 30.20, 33.00, 4.80, 7.90, 45.00, 'Klorofil-a tinggi - indikasi blooming alga!')
+INSERT INTO water_quality_records (id, record_code, sampling_event_id, temperature_c, salinity_psu, dissolved_oxygen_mgl, ph, chlorophyll_a_ugl, notes) VALUES
+('77777777-7777-7777-7777-777777777771', 'WQ-101', '44444444-4444-4444-4444-444444444441', 29.50, 32.00, 5.40, 8.10, 12.50, 'Kualitas air normal'),
+('77777777-7777-7777-7777-777777777772', 'WQ-102', '44444444-4444-4444-4444-444444444442', 28.10, 30.00, 6.00, 8.20, 8.20, 'Kondisi stabil'),
+('77777777-7777-7777-7777-777777777773', 'WQ-103', '44444444-4444-4444-4444-444444444443', 30.20, 33.00, 4.80, 7.90, 45.00, 'Klorofil-a tinggi - indikasi blooming alga!')
 ON CONFLICT (record_code) DO NOTHING;
 
 -- 8. PLANKTON RECORDS
@@ -63,9 +63,9 @@ INSERT INTO plankton_records (id, record_code, sampling_event_id, species_id, de
 ON CONFLICT (record_code) DO NOTHING;
 
 -- 9. BLOOM EVENTS
-INSERT INTO bloom_events (id, event_code, station_id, event_date, event_type, severity_level, alert_status, description, impact_assessment, response_action, reported_by, validated_by, validated_at) VALUES
-('66666666-6666-6666-6666-666666666661', 'EVT-202607-01', '22222222-2222-2222-2222-222222222221', '2026-07-02', 'Harmful Algal Blooms', 'tinggi', 'Siaga', 'Peningkatan drastis populasi Pyrodinium bahamense di perairan Teluk Jakarta.', 'Potensi kontaminasi kerang pesisir dan kematian ikan di tambak.', 'Pemasangan rambu peringatan dan pengambilan sampel intensif.', '11111111-1111-1111-1111-111111111112', '11111111-1111-1111-1111-111111111111', CURRENT_TIMESTAMP),
-('66666666-6666-6666-6666-666666666662', 'EVT-202607-02', '22222222-2222-2222-2222-222222222223', '2026-07-03', 'Jellyfish Bloom', 'sedang', 'Waspada', 'Lonjakan populasi ubur-ubur Aurelia aurita mendadak di area perikanan tangkap.', 'Mengganggu jaring nelayan dan aktivitas wisata pantai.', 'Himbauan keselamatan bagi wisatawan dan koordinasi dinas kelautan.', '11111111-1111-1111-1111-111111111114', '11111111-1111-1111-1111-111111111111', CURRENT_TIMESTAMP)
+INSERT INTO bloom_events (id, event_code, station_id, event_start_date, event_end_date, event_type, severity_level, alert_status, description, impact_assessment, response_action, reported_by, validated_by, validated_at) VALUES
+('66666666-6666-6666-6666-666666666661', 'EVT-202607-01', '22222222-2222-2222-2222-222222222221', '2026-07-02', '2026-07-10', 'Harmful Algal Blooms', 'tinggi', 'Siaga', 'Peningkatan drastis populasi Pyrodinium bahamense di perairan Teluk Jakarta.', 'Potensi kontaminasi kerang pesisir dan kematian ikan di tambak.', 'Pemasangan rambu peringatan dan pengambilan sampel intensif.', '11111111-1111-1111-1111-111111111112', '11111111-1111-1111-1111-111111111111', CURRENT_TIMESTAMP),
+('66666666-6666-6666-6666-666666666662', 'EVT-202607-02', '22222222-2222-2222-2222-222222222223', '2026-07-03', NULL, 'Jellyfish Bloom', 'sedang', 'Waspada', 'Lonjakan populasi ubur-ubur Aurelia aurita mendadak di area perikanan tangkap.', 'Mengganggu jaring nelayan dan aktivitas wisata pantai.', 'Himbauan keselamatan bagi wisatawan dan koordinasi dinas kelautan.', '11111111-1111-1111-1111-111111111114', '11111111-1111-1111-1111-111111111111', CURRENT_TIMESTAMP)
 ON CONFLICT (event_code) DO NOTHING;
 
 -- 10. EVENT REPORT SOURCES
@@ -79,7 +79,14 @@ INSERT INTO bloom_event_plankton (bloom_event_id, plankton_record_id, relationsh
 ('66666666-6666-6666-6666-666666666662', '55555555-5555-5555-5555-555555555553', 'Spesies ubur-ubur yang mengalami blooming')
 ON CONFLICT (bloom_event_id, plankton_record_id) DO NOTHING;
 
--- 12. DATASETS
+-- 12. BLOOM EVENT WATER QUALITY
+INSERT INTO bloom_event_water_quality (bloom_event_id, water_quality_record_id, relationship_notes) VALUES
+('66666666-6666-6666-6666-666666666661', '77777777-7777-7777-7777-777777777771', 'Klorofil-a 12.5 ug/L dan suhu 29.5°C mengindikasikan awal blooming alga'),
+('66666666-6666-6666-6666-666666666662', '77777777-7777-7777-7777-777777777773', 'Klorofil-a ekstrem 45.0 ug/L dan DO rendah 4.8 mg/L memicu ledakan ubur-ubur')
+ON CONFLICT (bloom_event_id, water_quality_record_id) DO NOTHING;
+
+-- 13. DATASETS
 INSERT INTO datasets (file_name, original_name, file_format, file_size_bytes, storage_path, description, uploaded_by, station_id, sampling_event_id) VALUES
 ('ds_01_teluk_jakarta_2025.csv', 'Data Kualitas Air Teluk Jakarta 2025.csv', 'CSV', 2621440, '/uploads/datasets/ds_01_teluk_jakarta_2025.csv', 'Data Kualitas Air Teluk Jakarta 2025 mentah', '11111111-1111-1111-1111-111111111112', '22222222-2222-2222-2222-222222222221', '44444444-4444-4444-4444-444444444441'),
 ('ds_02_habs_distribution.pdf', 'Laporan Distribusi Spesies HABs.pdf', 'PDF', 5347737, '/uploads/datasets/ds_02_habs_distribution.pdf', 'Laporan Distribusi Spesies HABs Indonesia 2026', '11111111-1111-1111-1111-111111111114', NULL, NULL);
+

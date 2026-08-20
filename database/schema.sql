@@ -221,7 +221,8 @@ CREATE TABLE IF NOT EXISTS bloom_events (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     event_code VARCHAR(30) NOT NULL UNIQUE,
     station_id UUID NOT NULL REFERENCES monitoring_stations(id) ON DELETE CASCADE,
-    event_date DATE NOT NULL,
+    event_start_date DATE NOT NULL,
+    event_end_date DATE,
     event_type VARCHAR(50) NOT NULL CHECK (event_type IN ('Harmful Algal Blooms', 'Jellyfish Bloom')),
     severity_level VARCHAR(20) NOT NULL CHECK (severity_level IN ('rendah', 'sedang', 'tinggi', 'kritis')),
     alert_status VARCHAR(20) NOT NULL CHECK (alert_status IN ('Normal', 'Waspada', 'Siaga', 'Darurat')),
@@ -281,7 +282,19 @@ CREATE TABLE IF NOT EXISTS bloom_event_plankton (
 );
 
 -- -----------------------------------------------------------------------------
--- 12. DATASETS
+-- 12. BLOOM EVENT WATER QUALITY (Junction Many-to-Many)
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS bloom_event_water_quality (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    bloom_event_id UUID NOT NULL REFERENCES bloom_events(id) ON DELETE CASCADE,
+    water_quality_record_id UUID NOT NULL REFERENCES water_quality_records(id) ON DELETE CASCADE,
+    relationship_notes TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT unique_bloom_event_water_quality UNIQUE (bloom_event_id, water_quality_record_id)
+);
+
+-- -----------------------------------------------------------------------------
+-- 13. DATASETS
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS datasets (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -320,7 +333,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_species_code ON species_master (species_co
 
 -- Date Filter Indexes
 CREATE INDEX IF NOT EXISTS idx_sampling_date ON sampling_events (sampling_date DESC);
-CREATE INDEX IF NOT EXISTS idx_bloom_event_date ON bloom_events (event_date DESC);
+CREATE INDEX IF NOT EXISTS idx_bloom_event_start_date ON bloom_events (event_start_date DESC);
+CREATE INDEX IF NOT EXISTS idx_bloom_event_end_date ON bloom_events (event_end_date DESC);
 
 -- Alert & Category Filter Indexes
 CREATE INDEX IF NOT EXISTS idx_bloom_alert_status ON bloom_events (alert_status);
@@ -338,6 +352,11 @@ CREATE INDEX IF NOT EXISTS idx_bloom_station ON bloom_events (station_id);
 CREATE INDEX IF NOT EXISTS idx_bloom_reporter ON bloom_events (reported_by);
 CREATE INDEX IF NOT EXISTS idx_bloom_validator ON bloom_events (validated_by);
 CREATE INDEX IF NOT EXISTS idx_report_sources_event ON event_report_sources (bloom_event_id);
+CREATE INDEX IF NOT EXISTS idx_bloom_plankton_event ON bloom_event_plankton (bloom_event_id);
+CREATE INDEX IF NOT EXISTS idx_bloom_plankton_record ON bloom_event_plankton (plankton_record_id);
+CREATE INDEX IF NOT EXISTS idx_bloom_wq_event ON bloom_event_water_quality (bloom_event_id);
+CREATE INDEX IF NOT EXISTS idx_bloom_wq_record ON bloom_event_water_quality (water_quality_record_id);
 CREATE INDEX IF NOT EXISTS idx_datasets_uploader ON datasets (uploaded_by);
 CREATE INDEX IF NOT EXISTS idx_datasets_station ON datasets (station_id);
 CREATE INDEX IF NOT EXISTS idx_datasets_sampling ON datasets (sampling_event_id);
+

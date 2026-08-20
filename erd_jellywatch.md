@@ -32,6 +32,8 @@ erDiagram
 
     bloom_events ||--o{ bloom_event_plankton : "terkait"
     plankton_records ||--o{ bloom_event_plankton : "terkait"
+    bloom_events ||--o{ bloom_event_water_quality : "terkait"
+    water_quality_records ||--o{ bloom_event_water_quality : "terkait"
     bloom_events ||--o{ event_report_sources : "memiliki sumber"
 
     datasets }o--o| sampling_events : "merujuk (opsional)"
@@ -147,7 +149,8 @@ erDiagram
         uuid id PK
         varchar event_code UK
         uuid station_id FK
-        date event_date
+        date event_start_date
+        date event_end_date
         varchar event_type
         varchar severity_level
         varchar alert_status
@@ -177,6 +180,14 @@ erDiagram
         uuid id PK
         uuid bloom_event_id FK
         uuid plankton_record_id FK
+        text relationship_notes
+        timestamp created_at
+    }
+
+    bloom_event_water_quality {
+        uuid id PK
+        uuid bloom_event_id FK
+        uuid water_quality_record_id FK
         text relationship_notes
         timestamp created_at
     }
@@ -355,14 +366,15 @@ Data kelimpahan spesies fitoplankton, zooplankton, dan ubur-ubur. **Sekarang mer
 ---
 
 ### 9. `bloom_events`
-Pencatatan kejadian HABs (Harmful Algal Blooms) dan Jellyfish Bloom.
+Pencatatan kejadian HABs (Harmful Algal Blooms) dan Jellyfish Bloom yang berlangsung dalam rentang waktu tertentu.
 
 | Kolom | Tipe | Keterangan |
 |---|---|---|
 | `id` | `UUID` | Primary Key |
 | `event_code` | `VARCHAR(30)` | Kode unik, e.g., `EVT-202607-01` |
 | `station_id` | `UUID` | FK → `monitoring_stations.id` |
-| `event_date` | `DATE` | Tanggal kejadian |
+| `event_start_date` | `DATE` | Tanggal mulai kejadian |
+| `event_end_date` | `DATE` | Tanggal selesai kejadian (nullable jika masih berlangsung) |
 | `event_type` | `VARCHAR(50)` | `'Harmful Algal Blooms'`, `'Jellyfish Bloom'` |
 | `severity_level` | `VARCHAR(20)` | `'rendah'`, `'sedang'`, `'tinggi'`, `'kritis'` |
 | `alert_status` | `VARCHAR(20)` | `'Normal'`, `'Waspada'`, `'Siaga'`, `'Darurat'` |
@@ -378,7 +390,7 @@ Pencatatan kejadian HABs (Harmful Algal Blooms) dan Jellyfish Bloom.
 
 ---
 
-### 10. `event_report_sources` *(BARU)*
+### 10. `event_report_sources`
 Mencatat **sumber laporan** untuk setiap bloom event. Satu kejadian bisa memiliki banyak sumber (paper, laporan lapangan, laporan masyarakat, citra satelit, dll).
 
 | Kolom | Tipe | Keterangan |
@@ -394,7 +406,7 @@ Mencatat **sumber laporan** untuk setiap bloom event. Satu kejadian bisa memilik
 
 ---
 
-### 11. `bloom_event_plankton` *(BARU)*
+### 11. `bloom_event_plankton`
 Junction table untuk relasi **Many-to-Many** antara bloom events dan plankton records.
 
 | Kolom | Tipe | Keterangan |
@@ -407,7 +419,20 @@ Junction table untuk relasi **Many-to-Many** antara bloom events dan plankton re
 
 ---
 
-### 12. `datasets`
+### 12. `bloom_event_water_quality` *(BARU)*
+Junction table untuk relasi **Many-to-Many** antara bloom events dan parameter kualitas air (`water_quality_records`).
+
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| `id` | `UUID` | Primary Key |
+| `bloom_event_id` | `UUID` | FK → `bloom_events.id` |
+| `water_quality_record_id` | `UUID` | FK → `water_quality_records.id` |
+| `relationship_notes` | `TEXT` | Catatan parameter pemicu/indikator, e.g., `"Suhu 29.5°C & Klorofil-a tinggi memicu ledakan"` |
+| `created_at` | `TIMESTAMPTZ` | Auto-generated |
+
+---
+
+### 13. `datasets`
 Manajemen file dataset (CSV, PDF, Excel) yang diunggah ke sistem.
 
 | Kolom | Tipe | Keterangan |

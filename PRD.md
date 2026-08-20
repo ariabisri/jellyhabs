@@ -2,7 +2,7 @@ PRODUCT REQUIREMENTS DOCUMENT (PRD)
 JellyHABs-GIS
 Sistem Informasi Monitoring Harmful Algal Blooms (HABs) dan Blooming Ubur-Ubur Berbahaya Berbasis WebGIS
 
-Versi: 1.2 (Diperbarui: Pengsembunyian Menu Sistem & Tombol Mutasi untuk Pengunjung / Guest)
+Versi: 1.3 (Diperbarui: Koreksi Model Event — Rentang Waktu & Relasi Kualitas Air)
 
 1. Ringkasan Produk
 
@@ -51,9 +51,12 @@ Monitoring
 - Zooplankton
 - Ubur-Ubur
 
-Event
+Event (Kejadian Blooming)
 - HABs Event
 - Jellyfish Bloom Event
+- Setiap event memiliki **rentang waktu** (tanggal mulai – tanggal selesai), bukan hanya 1 hari.
+- Setiap event **berelasi dengan data kualitas air** (water_quality_records) yang relevan di periode dan stasiun yang sama, karena parameter lingkungan (suhu, klorofil-a, DO, pH, salinitas, dsb.) merupakan faktor pemicu dan indikator terjadinya blooming.
+- Setiap event juga **berelasi dengan data plankton** (plankton_records) yang tercatat selama periode kejadian.
 
 Visualisasi
 - Dashboard
@@ -124,10 +127,47 @@ Acceptance Criteria:
 - HANYA Admin terautentikasi yang dapat mengakses modul ini.
 - Pengguna Guest atau non-login dialihkan ke `/login`.
 
-7. Definisi Keberhasilan MVP
+Modul 3 – Event Kejadian Blooming (HABs & Jellyfish Bloom)
+Data:
+- Kode Kejadian
+- Stasiun Monitoring
+- Tanggal Mulai Kejadian (`event_start_date`)
+- Tanggal Selesai Kejadian (`event_end_date`)
+- Jenis Kejadian (Harmful Algal Blooms / Jellyfish Bloom)
+- Tingkat Keparahan (rendah, sedang, tinggi, kritis)
+- Status Peringatan (Normal, Waspada, Siaga, Darurat)
+- Deskripsi, Dampak, dan Tindakan Respon
+- Pelapor & Validator
+
+Relasi Data:
+- **Kualitas Air**: Setiap event berelasi dengan satu atau lebih data kualitas air (`water_quality_records`) yang tercatat pada periode dan stasiun yang sama. Parameter lingkungan seperti suhu, klorofil-a, DO, pH, dan salinitas merupakan faktor pemicu dan indikator terjadinya blooming. Relasi ini dikelola melalui junction table `bloom_event_water_quality`.
+- **Plankton**: Setiap event berelasi dengan satu atau lebih data plankton (`plankton_records`) yang tercatat selama periode kejadian, melalui junction table `bloom_event_plankton`.
+
+Acceptance Criteria:
+- Kejadian blooming dicatat dengan **rentang waktu** (tanggal mulai dan tanggal selesai), bukan hanya satu tanggal.
+- Saat mencatat/mengedit kejadian, pengguna dapat mengaitkan data kualitas air dan data plankton yang relevan.
+- Data event menampilkan informasi parameter lingkungan terkait untuk mendukung analisis penyebab.
+
+7. Model Data — Catatan Penting
+
+7.1 Tabel `bloom_events` (Kejadian Blooming)
+- Kolom `event_date` **DIGANTI** menjadi dua kolom: `event_start_date DATE NOT NULL` dan `event_end_date DATE` (nullable, karena kejadian mungkin masih berlangsung).
+- Kejadian blooming berlangsung dalam **rentang waktu tertentu** (hari hingga minggu), bukan hanya 1 hari.
+
+7.2 Junction Table `bloom_event_water_quality` (BARU)
+- Relasi Many-to-Many antara `bloom_events` dan `water_quality_records`.
+- Menghubungkan kejadian blooming dengan data parameter lingkungan laut yang relevan.
+- Kolom: `bloom_event_id`, `water_quality_record_id`, `relationship_notes`.
+
+7.3 Junction Table `bloom_event_plankton` (Sudah ada)
+- Relasi Many-to-Many antara `bloom_events` dan `plankton_records`.
+- Menghubungkan kejadian blooming dengan data kepadatan spesies terkait.
+
+8. Definisi Keberhasilan MVP
 MVP dianggap berhasil apabila:
 - Data monitoring dapat diakses secara publik (Read-only) tanpa login.
 - Operasi mutasi data (Add/Edit/Delete) dan Manajemen Pengguna dilindungi autentikasi.
 - Tampilan UI secara bersih menyembunyikan tombol aksi mutasi dan menu sensitif untuk Pengunjung / Guest.
 - Header & Sidebar mencerminkan status sesi pengguna dengan benar.
+- Kejadian blooming tercatat dengan rentang waktu (tanggal mulai–selesai) dan terelasi dengan data kualitas air serta data plankton.
 - Sistem berhasil di-deploy pada VPS Ubuntu menggunakan Next.js, PostgreSQL/PostGIS, PM2, dan Nginx.
