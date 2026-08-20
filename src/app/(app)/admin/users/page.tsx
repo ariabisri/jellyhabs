@@ -123,8 +123,11 @@ export default function UsersPage() {
 
   React.useEffect(() => {
     if (authenticated && authUser?.role === "Admin") {
-      fetchRoles()
-      fetchUsers()
+      const timer = setTimeout(() => {
+        fetchRoles()
+        fetchUsers()
+      }, 0)
+      return () => clearTimeout(timer)
     }
   }, [authenticated, authUser, fetchRoles, fetchUsers])
 
@@ -136,6 +139,16 @@ export default function UsersPage() {
     }, 300)
     return () => clearTimeout(timer)
   }, [searchQuery, authenticated, authUser, fetchUsers])
+
+  const selectedRoleName = React.useMemo(() => {
+    const found = roles.find((r) => r.id === formRoleId)
+    return found ? found.name : ""
+  }, [roles, formRoleId])
+
+  const selectedStatusName = React.useMemo(() => {
+    if (!formStatus) return ""
+    return formStatus.charAt(0).toUpperCase() + formStatus.slice(1)
+  }, [formStatus])
 
   if (authLoading || !authenticated || authUser?.role !== "Admin") {
     return (
@@ -255,15 +268,6 @@ export default function UsersPage() {
     }
   }
 
-  const selectedRoleName = React.useMemo(() => {
-    const found = roles.find((r) => r.id === formRoleId)
-    return found ? found.name : ""
-  }, [roles, formRoleId])
-
-  const selectedStatusName = React.useMemo(() => {
-    if (!formStatus) return ""
-    return formStatus.charAt(0).toUpperCase() + formStatus.slice(1)
-  }, [formStatus])
 
   return (
     <div className="flex flex-col gap-6">

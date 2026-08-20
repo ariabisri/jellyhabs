@@ -53,7 +53,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   useEffect(() => {
-    fetchSession()
+    const timer = setTimeout(() => {
+      fetchSession()
+    }, 0)
+    return () => clearTimeout(timer)
   }, [fetchSession])
 
   const logout = async () => {

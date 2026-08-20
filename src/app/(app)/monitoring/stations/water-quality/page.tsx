@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -30,10 +31,10 @@ export default function WaterQualityPage() {
       <nav className="flex items-center gap-1.5 text-xs text-muted-foreground">
         <span>Monitoring</span>
         <ChevronRight className="h-3.5 w-3.5" />
-        <a href="/monitoring/stations" className="hover:text-primary transition-colors flex items-center gap-1">
+        <Link href="/monitoring/stations" className="hover:text-primary transition-colors flex items-center gap-1">
           <Anchor className="h-3.5 w-3.5" />
           Stasiun Monitoring
-        </a>
+        </Link>
         <ChevronRight className="h-3.5 w-3.5" />
         <span className="font-semibold text-foreground">Kualitas Air</span>
       </nav>

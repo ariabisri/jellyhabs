@@ -1,3 +1,4 @@
+import Link from "next/link"
 import {
   Card,
   CardContent,
@@ -5,7 +6,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Activity, Anchor, Bug, Droplets, TrendingUp, TrendingDown, ArrowRight } from "lucide-react"
+import { Activity, Anchor, Bug, Droplets, TrendingUp, TrendingDown } from "lucide-react"
 import { LineChart } from "@/components/charts/line-chart"
 import { BarChart } from "@/components/charts/bar-chart"
 
@@ -20,7 +21,7 @@ export default function DashboardPage() {
       </div>
       
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <a href="/monitoring/stations" className="group">
+        <Link href="/monitoring/stations" className="group">
           <Card className="h-full transition-all duration-200 group-hover:border-primary/40 group-hover:shadow-[0_0_15px_rgba(0,180,216,0.1)]">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Stasiun</CardTitle>
@@ -34,9 +35,9 @@ export default function DashboardPage() {
               </p>
             </CardContent>
           </Card>
-        </a>
+        </Link>
         
-        <a href="/monitoring/sampling" className="group">
+        <Link href="/monitoring/sampling" className="group">
           <Card className="h-full transition-all duration-200 group-hover:border-primary/40 group-hover:shadow-[0_0_15px_rgba(0,180,216,0.1)]">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Sampling</CardTitle>
@@ -50,9 +51,9 @@ export default function DashboardPage() {
               </p>
             </CardContent>
           </Card>
-        </a>
+        </Link>
         
-        <a href="/events/habs" className="group">
+        <Link href="/events/habs" className="group">
           <Card className="h-full transition-all duration-200 group-hover:border-destructive/40 group-hover:shadow-[0_0_15px_rgba(239,68,68,0.1)]">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">HABs Events</CardTitle>
@@ -68,9 +69,9 @@ export default function DashboardPage() {
               </p>
             </CardContent>
           </Card>
-        </a>
+        </Link>
         
-        <a href="/events/habs" className="group">
+        <Link href="/events/habs" className="group">
           <Card className="h-full transition-all duration-200 group-hover:border-primary/40 group-hover:shadow-[0_0_15px_rgba(0,180,216,0.1)]">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Jellyfish Blooms</CardTitle>
@@ -84,7 +85,7 @@ export default function DashboardPage() {
               </p>
             </CardContent>
           </Card>
-        </a>
+        </Link>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">

@@ -25,14 +25,17 @@ export function ThemeProvider({
   const [mounted, setMounted] = React.useState(false)
 
   React.useEffect(() => {
-    setMounted(true)
-    const savedTheme = localStorage.getItem(storageKey) as Theme | null
-    if (savedTheme === "dark" || savedTheme === "light") {
-      setThemeState(savedTheme)
-    } else {
-      // Default to dark mode ("Abyssal Marine") per style_guide.md
-      setThemeState("dark")
-    }
+    const timer = setTimeout(() => {
+      setMounted(true)
+      const savedTheme = localStorage.getItem(storageKey) as Theme | null
+      if (savedTheme === "dark" || savedTheme === "light") {
+        setThemeState(savedTheme)
+      } else {
+        // Default to dark mode ("Abyssal Marine") per style_guide.md
+        setThemeState("dark")
+      }
+    }, 0)
+    return () => clearTimeout(timer)
   }, [storageKey])
 
   React.useEffect(() => {

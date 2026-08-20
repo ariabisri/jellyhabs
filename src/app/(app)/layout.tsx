@@ -4,7 +4,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
 import { Separator } from "@/components/ui/separator"
 import { ThemeToggle } from "@/components/theme-toggle"
-import { Bell, Waves, LogIn, User, Shield, Loader2 } from "lucide-react"
+import { Bell, Waves, LogIn, Shield, Loader2 } from "lucide-react"
 import React from "react"
 import { AuthProvider, useAuth } from "@/lib/auth-context"
 
