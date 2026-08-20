@@ -61,7 +61,7 @@ export default function SamplingPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>ID Sampling</TableHead>
+              <TableHead>Kode Sampling</TableHead>
               <TableHead>Tanggal</TableHead>
               <TableHead>Stasiun</TableHead>
               <TableHead>Cuaca</TableHead>

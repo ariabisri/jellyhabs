@@ -90,6 +90,34 @@ interface StationOption {
   name: string
 }
 
+function formatIndoDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return "-"
+  try {
+    const parts = dateStr.split("-")
+    if (parts.length === 3) {
+      const year = parseInt(parts[0], 10)
+      const month = parseInt(parts[1], 10)
+      const day = parseInt(parts[2], 10)
+      const months = [
+        "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+        "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+      ]
+      if (month >= 1 && month <= 12 && !isNaN(day) && !isNaN(year)) {
+        return `${day} ${months[month - 1]} ${year}`
+      }
+    }
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return dateStr
+    return d.toLocaleDateString("id-ID", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    })
+  } catch {
+    return dateStr
+  }
+}
+
 const initialFormData = {
   record_code: "",
   sampling_event_id: "",
@@ -528,8 +556,8 @@ export default function WaterQualityPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[110px]">ID WQ</TableHead>
-              <TableHead>Sampling & Tanggal</TableHead>
+              <TableHead className="w-[120px]">Kode WQ</TableHead>
+              <TableHead>Sampling Event & Waktu</TableHead>
               <TableHead>Stasiun</TableHead>
               <TableHead className="text-right">Suhu (°C)</TableHead>
               <TableHead className="text-right">Salinitas (PSU)</TableHead>
@@ -581,7 +609,7 @@ export default function WaterQualityPage() {
                         <span className="font-mono font-semibold text-foreground">
                           {r.sampling_code}
                         </span>
-                        <span className="text-muted-foreground">{r.sampling_date}</span>
+                        <span className="text-muted-foreground">{formatIndoDate(r.sampling_date)}</span>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -698,13 +726,13 @@ export default function WaterQualityPage() {
                       setFormData({ ...formData, sampling_event_id: val || "" })
                     }
                   >
-                    <SelectTrigger id="sampling_event_id">
-                      <SelectValue placeholder="Pilih Sampling" />
+                    <SelectTrigger id="sampling_event_id" className="w-full">
+                      <SelectValue placeholder="Pilih Sampling Event" />
                     </SelectTrigger>
                     <SelectContent>
                       {samplingOptions.map((opt) => (
                         <SelectItem key={opt.id} value={opt.id}>
-                          {opt.sampling_code} ({opt.station_name} - {opt.sampling_date})
+                          {opt.sampling_code} &mdash; {opt.station_name} ({formatIndoDate(opt.sampling_date)})
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -966,7 +994,7 @@ export default function WaterQualityPage() {
             </DialogTitle>
             <DialogDescription>
               Apakah Anda yakin ingin menghapus data kualitas air{" "}
-              <strong className="text-foreground">{deletingRecord?.record_code}</strong> (Sampling: {deletingRecord?.sampling_code})?
+              <strong className="text-foreground">{deletingRecord?.record_code}</strong> (Sampling: {deletingRecord?.sampling_code} &mdash; {deletingRecord?.station_name}, {formatIndoDate(deletingRecord?.sampling_date)})?
             </DialogDescription>
           </DialogHeader>
 
