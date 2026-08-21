@@ -19,6 +19,7 @@ const updateSamplingSchema = z.object({
   sampling_time: z.string().optional().nullable(),
   weather_condition: z.string().max(50).optional().nullable(),
   field_notes: z.string().optional().nullable(),
+  image_url: z.string().optional().nullable(),
   members: z.array(memberSchema).optional().default([]),
 })
 
@@ -38,6 +39,7 @@ export async function GET(
         TO_CHAR(se.sampling_time, 'HH24:MI') AS sampling_time,
         se.weather_condition,
         se.field_notes,
+        se.image_url,
         se.created_at,
         se.updated_at,
         s.id AS station_id,
@@ -189,6 +191,7 @@ export async function PUT(
       sampling_time,
       weather_condition,
       field_notes,
+      image_url,
       members,
     } = result.data
 
@@ -233,8 +236,9 @@ export async function PUT(
           sampling_date = $3,
           sampling_time = $4,
           weather_condition = $5,
-          field_notes = $6
-        WHERE id = $7
+          field_notes = $6,
+          image_url = $7
+        WHERE id = $8
         RETURNING *
       `
       const eventRes = await client.query(updateSql, [
@@ -244,6 +248,7 @@ export async function PUT(
         sampling_time || null,
         weather_condition || null,
         field_notes || null,
+        image_url || null,
         targetId,
       ])
 

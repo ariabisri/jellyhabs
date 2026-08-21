@@ -19,6 +19,7 @@ const createSamplingSchema = z.object({
   sampling_time: z.string().optional().nullable(),
   weather_condition: z.string().max(50).optional().nullable(),
   field_notes: z.string().optional().nullable(),
+  image_url: z.string().optional().nullable(),
   members: z.array(memberSchema).optional().default([]),
 })
 
@@ -39,6 +40,7 @@ export async function GET(request: Request) {
         TO_CHAR(se.sampling_time, 'HH24:MI') AS sampling_time,
         se.weather_condition,
         se.field_notes,
+        se.image_url,
         se.created_at,
         se.updated_at,
         s.id AS station_id,
@@ -164,6 +166,7 @@ export async function POST(request: Request) {
       sampling_time,
       weather_condition,
       field_notes,
+      image_url,
       members,
     } = result.data
 
@@ -204,9 +207,9 @@ export async function POST(request: Request) {
       const insertEventSql = `
         INSERT INTO sampling_events (
           sampling_code, station_id, sampling_date, sampling_time,
-          weather_condition, field_notes, recorded_by
+          weather_condition, field_notes, image_url, recorded_by
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING *
       `
       const eventRes = await client.query(insertEventSql, [
@@ -216,6 +219,7 @@ export async function POST(request: Request) {
         sampling_time || null,
         weather_condition || null,
         field_notes || null,
+        image_url || null,
         session.id,
       ])
 

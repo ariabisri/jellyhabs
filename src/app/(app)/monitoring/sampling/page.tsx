@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -52,6 +53,11 @@ import {
   UserPlus,
   X,
   FileText,
+  Camera,
+  Upload,
+  ImageIcon,
+  Maximize2,
+  ExternalLink,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-context"
@@ -92,6 +98,7 @@ interface SamplingEventItem {
   sampling_time: string | null
   weather_condition: string | null
   field_notes: string | null
+  image_url: string | null
   station_id: string
   station_code: string
   station_name: string
@@ -160,6 +167,7 @@ const initialForm = {
   sampling_time: "08:00",
   weather_condition: "Cerah",
   field_notes: "",
+  image_url: "",
   members: [] as { user_id: string; role_in_sampling: string }[],
 }
 
@@ -188,6 +196,11 @@ export default function SamplingPage() {
   const [formData, setFormData] = React.useState(initialForm)
   const [formSubmitting, setFormSubmitting] = React.useState(false)
   const [formError, setFormError] = React.useState<string | null>(null)
+
+  // Photo Upload State in Form
+  const [photoFile, setPhotoFile] = React.useState<File | null>(null)
+  const [photoPreview, setPhotoPreview] = React.useState<string | null>(null)
+  const [photoUploading, setPhotoUploading] = React.useState(false)
 
   // Delete Modal
   const [isDeleteOpen, setIsDeleteOpen] = React.useState(false)
@@ -289,6 +302,8 @@ export default function SamplingPage() {
         ? [{ user_id: user.id, role_in_sampling: "Ketua Tim Lapangan (Lead)" }]
         : [],
     })
+    setPhotoFile(null)
+    setPhotoPreview(null)
     setFormError(null)
     setIsFormOpen(true)
   }
@@ -303,13 +318,25 @@ export default function SamplingPage() {
       sampling_time: item.sampling_time || "08:00",
       weather_condition: item.weather_condition || "Cerah",
       field_notes: item.field_notes || "",
+      image_url: item.image_url || "",
       members: item.members.map((m) => ({
         user_id: m.user_id,
         role_in_sampling: m.role_in_sampling,
       })),
     })
+    setPhotoFile(null)
+    setPhotoPreview(item.image_url || null)
     setFormError(null)
     setIsFormOpen(true)
+  }
+
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0]
+      setPhotoFile(file)
+      const previewUrl = URL.createObjectURL(file)
+      setPhotoPreview(previewUrl)
+    }
   }
 
   const handleAddMember = () => {
@@ -351,6 +378,32 @@ export default function SamplingPage() {
     setFormSubmitting(true)
 
     try {
+      let finalImageUrl = formData.image_url?.trim() || null
+
+      // If a local photo file is selected, upload it first
+      if (photoFile) {
+        setPhotoUploading(true)
+        const uploadData = new FormData()
+        uploadData.append("file", photoFile)
+        uploadData.append("folder", "sampling")
+
+        const uploadRes = await fetch("/api/upload", {
+          method: "POST",
+          body: uploadData,
+        })
+        const uploadJson = await uploadRes.json()
+
+        if (!uploadRes.ok || !uploadJson.success) {
+          setFormError(uploadJson.error || "Gagal mengunggah foto dokumentasi")
+          setFormSubmitting(false)
+          setPhotoUploading(false)
+          return
+        }
+
+        finalImageUrl = uploadJson.url
+        setPhotoUploading(false)
+      }
+
       const payload = {
         sampling_code: formData.sampling_code.trim(),
         station_id: formData.station_id,
@@ -358,6 +411,7 @@ export default function SamplingPage() {
         sampling_time: formData.sampling_time ? `${formData.sampling_time}:00` : null,
         weather_condition: formData.weather_condition?.trim() || null,
         field_notes: formData.field_notes?.trim() || null,
+        image_url: finalImageUrl,
         members: formData.members,
       }
 
@@ -542,7 +596,7 @@ export default function SamplingPage() {
               <TableHead>Cuaca</TableHead>
               <TableHead>Tim Peneliti</TableHead>
               <TableHead className="text-center">Data Terkait</TableHead>
-              <TableHead>Catatan Lapangan</TableHead>
+              <TableHead>Foto & Catatan</TableHead>
               <TableHead className="text-right">Aksi</TableHead>
             </TableRow>
           </TableHeader>
@@ -648,9 +702,21 @@ export default function SamplingPage() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <p className="text-xs text-muted-foreground max-w-[200px] truncate" title={s.field_notes || ""}>
-                      {s.field_notes || "-"}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      {s.image_url ? (
+                        <div className="relative h-7 w-7 rounded overflow-hidden border shrink-0 bg-muted">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={s.image_url}
+                            alt="Foto Lapangan"
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                      ) : null}
+                      <p className="text-xs text-muted-foreground max-w-[180px] truncate" title={s.field_notes || ""}>
+                        {s.field_notes || (s.image_url ? "Terdapat foto dokumentasi" : "-")}
+                      </p>
+                    </div>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
@@ -699,80 +765,150 @@ export default function SamplingPage() {
         </Table>
       </div>
 
-      {/* MODAL DIALOG: DETAIL SAMPLING EVENT */}
+      {/* MODAL DIALOG: DETAIL SAMPLING EVENT (EXPANDED TO MAX-W-4XL) */}
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto p-6">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-primary" />
-              Detail Sampling Event &mdash; {selectedSampling?.sampling_code}
-            </DialogTitle>
-            <DialogDescription>
-              Informasi lengkap kegiatan pengambilan sampel lapangan di stasiun monitoring.
-            </DialogDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle className="text-xl flex items-center gap-2">
+                  <Calendar className="h-5 w-5 text-primary" />
+                  Detail Sampling Event: <span className="font-mono text-primary">{selectedSampling?.sampling_code}</span>
+                </DialogTitle>
+                <DialogDescription className="mt-1">
+                  Log lengkap kegiatan survei lapangan, dokumentasi foto, dan pengaitan data pemantauan.
+                </DialogDescription>
+              </div>
+              <Badge variant="outline" className="text-xs px-2.5 py-1">
+                {selectedSampling?.weather_condition || "Cerah"}
+              </Badge>
+            </div>
           </DialogHeader>
 
           {detailLoading ? (
-            <div className="py-12 flex flex-col items-center justify-center gap-2 text-muted-foreground">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              <span>Memuat detail sampling event...</span>
+            <div className="py-16 flex flex-col items-center justify-center gap-2 text-muted-foreground">
+              <Loader2 className="h-7 w-7 animate-spin text-primary" />
+              <span className="text-sm">Memuat detail lengkap sampling event...</span>
             </div>
           ) : selectedSampling ? (
-            <div className="space-y-5 py-2">
-              {/* Info Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 rounded-xl bg-card border shadow-2xs">
-                <div>
-                  <span className="text-xs text-muted-foreground block">Stasiun Monitoring:</span>
-                  <Link
-                    href={`/monitoring/stations/${selectedSampling.station_code || selectedSampling.station_id}`}
-                    className="font-semibold text-sm text-foreground hover:text-primary transition-colors flex items-center gap-1.5 mt-0.5"
-                  >
-                    <Anchor className="h-4 w-4 text-primary" />
-                    {selectedSampling.station_name}
-                  </Link>
-                  <span className="text-xs text-muted-foreground">
-                    {selectedSampling.city}, {selectedSampling.province}
-                  </span>
+            <div className="space-y-6 py-3">
+              {/* Top Section: Stasiun Info & Foto Dokumentasi Lapangan (2-Kolom) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Kolom Kiri: Informasi Utama & Stasiun */}
+                <div className="p-4 rounded-xl bg-card border shadow-2xs space-y-3.5">
+                  <div className="flex items-center justify-between border-b pb-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <Anchor className="h-4 w-4 text-primary" />
+                      Informasi Stasiun Monitoring
+                    </h4>
+                    <span className="font-mono text-xs font-semibold text-primary">{selectedSampling.station_code}</span>
+                  </div>
+
+                  <div>
+                    <Link
+                      href={`/monitoring/stations/${selectedSampling.station_code || selectedSampling.station_id}`}
+                      className="font-bold text-base text-foreground hover:text-primary hover:underline transition-colors block"
+                    >
+                      {selectedSampling.station_name}
+                    </Link>
+                    <span className="text-xs text-muted-foreground">
+                      {selectedSampling.city}, {selectedSampling.province}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 pt-2 border-t text-xs">
+                    <div>
+                      <span className="text-muted-foreground block text-[11px]">Tanggal Pengambilan:</span>
+                      <strong className="text-foreground">{formatIndoDate(selectedSampling.sampling_date)}</strong>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block text-[11px]">Waktu Pengambilan:</span>
+                      <strong className="text-foreground">
+                        {selectedSampling.sampling_time ? `${selectedSampling.sampling_time} WIB` : "-"}
+                      </strong>
+                    </div>
+                  </div>
+
+                  {selectedSampling.latitude !== null && selectedSampling.longitude !== null && (
+                    <div className="p-2 rounded-lg bg-muted/40 text-[11px] font-mono text-muted-foreground flex items-center justify-between">
+                      <span>Koordinat GPS:</span>
+                      <span className="font-semibold text-foreground">
+                        {Number(selectedSampling.latitude).toFixed(5)}, {Number(selectedSampling.longitude).toFixed(5)}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
-                <div>
-                  <span className="text-xs text-muted-foreground block">Waktu Pelaksanaan:</span>
-                  <span className="font-semibold text-sm text-foreground block mt-0.5">
-                    {formatIndoDate(selectedSampling.sampling_date)}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    Pukul: {selectedSampling.sampling_time ? `${selectedSampling.sampling_time} WIB` : "-"} &bull; Cuaca: {selectedSampling.weather_condition || "Cerah"}
-                  </span>
+                {/* Kolom Kanan: Foto Dokumentasi Lapangan */}
+                <div className="p-4 rounded-xl bg-card border shadow-2xs space-y-3">
+                  <div className="flex items-center justify-between border-b pb-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <Camera className="h-4 w-4 text-primary" />
+                      Dokumentasi Foto Lapangan
+                    </h4>
+                    {selectedSampling.image_url && (
+                      <a
+                        href={selectedSampling.image_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[11px] text-primary hover:underline flex items-center gap-1 font-medium"
+                      >
+                        Buka Foto Penuh <ExternalLink className="h-3 w-3" />
+                      </a>
+                    )}
+                  </div>
+
+                  {selectedSampling.image_url ? (
+                    <div className="relative h-44 w-full rounded-lg overflow-hidden border bg-muted/30 group">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={selectedSampling.image_url}
+                        alt={`Dokumentasi ${selectedSampling.sampling_code}`}
+                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent flex items-end p-2.5">
+                        <span className="text-[11px] text-white font-medium drop-shadow-sm flex items-center gap-1">
+                          <Camera className="h-3 w-3" /> Foto Sampling Lapangan ({selectedSampling.sampling_code})
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="h-44 rounded-lg border border-dashed flex flex-col items-center justify-center text-center p-4 bg-muted/10 text-muted-foreground">
+                      <ImageIcon className="h-8 w-8 mb-1.5 opacity-40" />
+                      <span className="text-xs font-medium">Belum ada foto dokumentasi</span>
+                      <span className="text-[11px] text-muted-foreground mt-0.5">
+                        Foto dapat ditambahkan melalui menu edit sampling.
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Tim Peneliti Lapangan */}
+              {/* Tim Peneliti Lapangan (Multi-Peneliti) */}
               <div className="space-y-2">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                   <Users className="h-4 w-4 text-primary" />
                   Tim Peneliti Lapangan
                 </h4>
-                <div className="p-3 rounded-lg border bg-muted/20 space-y-2 text-xs">
-                  <div className="flex items-center justify-between pb-1.5 border-b">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="p-3 rounded-lg border bg-card shadow-2xs flex items-center justify-between text-xs">
                     <div>
-                      <span className="font-semibold text-foreground">{selectedSampling.recorded_by_name}</span>
-                      <span className="text-muted-foreground text-[11px] block">{selectedSampling.recorded_by_email}</span>
+                      <strong className="text-foreground block">{selectedSampling.recorded_by_name}</strong>
+                      <span className="text-[11px] text-muted-foreground">{selectedSampling.recorded_by_email}</span>
                     </div>
                     <Badge variant="secondary" className="text-[10px]">Pencatat Utama (Logger)</Badge>
                   </div>
-                  {selectedSampling.members && selectedSampling.members.length > 0 ? (
-                    selectedSampling.members.map((m, idx) => (
-                      <div key={m.id || idx} className="flex items-center justify-between py-1 border-b last:border-b-0">
-                        <div>
-                          <span className="font-medium text-foreground">{m.full_name}</span>
-                          <span className="text-muted-foreground text-[11px] block">{m.email}</span>
-                        </div>
-                        <Badge variant="outline" className="text-[10px]">{m.role_in_sampling}</Badge>
+                  {selectedSampling.members && selectedSampling.members.map((m, idx) => (
+                    <div key={m.id || idx} className="p-3 rounded-lg border bg-card shadow-2xs flex items-center justify-between text-xs">
+                      <div>
+                        <strong className="text-foreground block">{m.full_name}</strong>
+                        <span className="text-[11px] text-muted-foreground">{m.email}</span>
                       </div>
-                    ))
-                  ) : (
-                    <span className="text-muted-foreground italic text-xs">Tidak ada anggota tim tambahan yang didaftarkan.</span>
-                  )}
+                      <Badge variant="outline" className="text-[10px] bg-primary/5 text-primary border-primary/20">
+                        {m.role_in_sampling}
+                      </Badge>
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -780,82 +916,85 @@ export default function SamplingPage() {
               <div className="space-y-1.5">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                   <FileText className="h-4 w-4 text-primary" />
-                  Catatan & Kondisi Lapangan
+                  Catatan Kondisi Lapangan & Log Pengamatan
                 </h4>
-                <p className="text-xs text-muted-foreground p-3 rounded-lg bg-card border shadow-2xs leading-relaxed whitespace-pre-wrap">
-                  {selectedSampling.field_notes || "Tidak ada catatan lapangan khusus."}
+                <p className="text-xs text-muted-foreground p-3.5 rounded-xl bg-card border shadow-2xs leading-relaxed whitespace-pre-wrap">
+                  {selectedSampling.field_notes || "Tidak ada catatan lapangan khusus yang dicatat."}
                 </p>
               </div>
 
-              {/* Data Kualitas Air Terhubung */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                    <Droplets className="h-4 w-4 text-primary" />
-                    Data Kualitas Air Terkait
-                  </h4>
-                  <span className="text-xs text-muted-foreground font-mono">
-                    {selectedSampling.water_quality_records?.length || selectedSampling.water_quality_count || 0} rekaman
-                  </span>
+              {/* Data Terkait: Kualitas Air & Plankton (2-Kolom) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                {/* Data Kualitas Air Terhubung */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <Droplets className="h-4 w-4 text-primary" />
+                      Parameter Kualitas Air
+                    </h4>
+                    <span className="text-xs text-muted-foreground font-mono">
+                      {selectedSampling.water_quality_records?.length || selectedSampling.water_quality_count || 0} data
+                    </span>
+                  </div>
+                  {selectedSampling.water_quality_records && selectedSampling.water_quality_records.length > 0 ? (
+                    <div className="space-y-2">
+                      {selectedSampling.water_quality_records.map((wq) => (
+                        <div key={wq.id} className="p-3 rounded-lg border bg-card shadow-2xs text-xs space-y-1.5">
+                          <div className="flex items-center justify-between font-semibold">
+                            <span className="text-primary font-mono">{wq.record_code}</span>
+                            <span className="text-foreground">Suhu: {wq.temperature_c ?? "-"} °C</span>
+                          </div>
+                          <div className="grid grid-cols-3 gap-1 text-[11px] text-muted-foreground pt-1 border-t">
+                            <span>Salinitas: {wq.salinity_psu ?? "-"} psu</span>
+                            <span>DO: {wq.dissolved_oxygen_mgl ?? "-"} mg/L</span>
+                            <span>Klorofil: {wq.chlorophyll_a_ugl ?? "-"} µg/L</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-3 rounded-lg bg-muted/20 border text-xs text-muted-foreground italic">
+                      Belum ada data kualitas air yang dihubungkan dengan sampling ini.
+                    </div>
+                  )}
                 </div>
-                {selectedSampling.water_quality_records && selectedSampling.water_quality_records.length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {selectedSampling.water_quality_records.map((wq) => (
-                      <div key={wq.id} className="p-2.5 rounded-lg border bg-card shadow-2xs text-xs space-y-1">
-                        <div className="flex items-center justify-between font-semibold">
-                          <span className="text-primary font-mono">{wq.record_code}</span>
-                          <span className="text-foreground">Suhu: {wq.temperature_c ?? "-"} °C</span>
-                        </div>
-                        <div className="grid grid-cols-3 gap-1 text-[11px] text-muted-foreground pt-1 border-t">
-                          <span>Sal: {wq.salinity_psu ?? "-"} psu</span>
-                          <span>DO: {wq.dissolved_oxygen_mgl ?? "-"} mg/L</span>
-                          <span>Klor-a: {wq.chlorophyll_a_ugl ?? "-"} µg/L</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="p-2.5 rounded-md bg-muted/30 border text-xs text-muted-foreground italic">
-                    Belum ada parameter kualitas air yang dihubungkan dengan sampling ini.
-                  </div>
-                )}
-              </div>
 
-              {/* Data Plankton Terhubung */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                    <Bug className="h-4 w-4 text-primary" />
-                    Temuan Spesies Plankton & Ubur-ubur Terkait
-                  </h4>
-                  <span className="text-xs text-muted-foreground font-mono">
-                    {selectedSampling.plankton_records?.length || selectedSampling.plankton_count || 0} rekaman
-                  </span>
+                {/* Data Plankton Terhubung */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <Bug className="h-4 w-4 text-primary" />
+                      Temuan Spesies Plankton & Ubur-ubur
+                    </h4>
+                    <span className="text-xs text-muted-foreground font-mono">
+                      {selectedSampling.plankton_records?.length || selectedSampling.plankton_count || 0} data
+                    </span>
+                  </div>
+                  {selectedSampling.plankton_records && selectedSampling.plankton_records.length > 0 ? (
+                    <div className="space-y-2">
+                      {selectedSampling.plankton_records.map((plk) => (
+                        <div key={plk.id} className="p-3 rounded-lg border bg-card shadow-2xs text-xs space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold italic text-foreground">{plk.scientific_name}</span>
+                            <Badge variant={plk.toxicity_status.toLowerCase().includes("beracun") ? "destructive" : "secondary"} className="text-[9px]">
+                              {plk.toxicity_status}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1 border-t">
+                            <span>{plk.organism_category}</span>
+                            <span className="font-mono font-medium text-foreground">
+                              {Number(plk.density_value).toLocaleString("id-ID")} {plk.density_unit}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-3 rounded-lg bg-muted/20 border text-xs text-muted-foreground italic">
+                      Belum ada temuan spesies yang dihubungkan dengan sampling ini.
+                    </div>
+                  )}
                 </div>
-                {selectedSampling.plankton_records && selectedSampling.plankton_records.length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {selectedSampling.plankton_records.map((plk) => (
-                      <div key={plk.id} className="p-2.5 rounded-lg border bg-card shadow-2xs text-xs space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold italic text-foreground">{plk.scientific_name}</span>
-                          <Badge variant={plk.toxicity_status.toLowerCase().includes("beracun") ? "destructive" : "secondary"} className="text-[9px]">
-                            {plk.toxicity_status}
-                          </Badge>
-                        </div>
-                        <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1 border-t">
-                          <span>{plk.organism_category}</span>
-                          <span className="font-mono font-medium text-foreground">
-                            {Number(plk.density_value).toLocaleString("id-ID")} {plk.density_unit}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="p-2.5 rounded-md bg-muted/30 border text-xs text-muted-foreground italic">
-                    Belum ada rekaman spesies yang dihubungkan dengan sampling ini.
-                  </div>
-                )}
               </div>
             </div>
           ) : null}
@@ -868,16 +1007,16 @@ export default function SamplingPage() {
         </DialogContent>
       </Dialog>
 
-      {/* MODAL DIALOG: ADD / EDIT SAMPLING EVENT */}
+      {/* MODAL DIALOG: ADD / EDIT SAMPLING EVENT WITH PHOTO UPLOAD (MAX-W-3XL) */}
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto p-6">
           <form onSubmit={handleFormSubmit}>
             <DialogHeader>
               <DialogTitle>
                 {isEditing ? "Edit Sampling Event" : "Tambah Sampling Event Baru"}
               </DialogTitle>
               <DialogDescription>
-                Catat jadwal pengambilan sampel lapangan dan tentukan tim peneliti yang bertugas.
+                Catat jadwal pengambilan sampel lapangan, tentukan tim peneliti, dan unggah foto dokumentasi.
               </DialogDescription>
             </DialogHeader>
 
@@ -979,7 +1118,86 @@ export default function SamplingPage() {
                 </div>
               </div>
 
-              {/* Bagian 3: Tim Peneliti Lapangan (Multi-Peneliti) */}
+              {/* Bagian 3: Unggah Foto Dokumentasi Lapangan */}
+              <div className="space-y-2 pt-2 border-t">
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  <Camera className="h-4 w-4 text-primary" />
+                  Foto Dokumentasi Lapangan (Opsional)
+                </Label>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                  <div className="flex flex-col items-center justify-center border-2 border-dashed border-border hover:border-primary/50 rounded-xl p-4 transition-colors bg-muted/10 text-center">
+                    <Upload className="h-6 w-6 text-muted-foreground mb-1.5" />
+                    <p className="text-xs font-medium text-foreground">
+                      {photoFile ? photoFile.name : "Unggah Berkas Foto Lapangan"}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      JPG, PNG, atau WEBP (Maksimal 5 MB)
+                    </p>
+                    <label className="mt-2.5 inline-flex items-center justify-center text-xs font-semibold px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer shadow-xs">
+                      Pilih Foto
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        className="hidden"
+                        onChange={handlePhotoSelect}
+                      />
+                    </label>
+                  </div>
+
+                  {/* Preview Box */}
+                  <div className="h-32 border rounded-xl overflow-hidden bg-muted/20 flex items-center justify-center relative">
+                    {photoPreview ? (
+                      <>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={photoPreview}
+                          alt="Preview Foto"
+                          className="h-full w-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPhotoFile(null)
+                            setPhotoPreview(null)
+                            setFormData({ ...formData, image_url: "" })
+                          }}
+                          className="absolute top-2 right-2 p-1 rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors"
+                          title="Hapus Foto"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </>
+                    ) : (
+                      <div className="flex flex-col items-center text-muted-foreground text-xs">
+                        <ImageIcon className="h-6 w-6 mb-1 opacity-40" />
+                        <span>Pratinjau foto akan muncul di sini</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Option for Direct URL */}
+                <div className="space-y-1 pt-1">
+                  <Label htmlFor="image_url" className="text-[11px] text-muted-foreground">
+                    Atau gunakan URL tautan gambar langsung:
+                  </Label>
+                  <Input
+                    id="image_url"
+                    placeholder="https://example.com/foto-sampling.jpg atau /uploads/sampling/..."
+                    value={formData.image_url}
+                    onChange={(e) => {
+                      setFormData({ ...formData, image_url: e.target.value })
+                      if (!photoFile) {
+                        setPhotoPreview(e.target.value || null)
+                      }
+                    }}
+                    className="text-xs h-8"
+                  />
+                </div>
+              </div>
+
+              {/* Bagian 4: Tim Peneliti Lapangan (Multi-Peneliti) */}
               <div className="space-y-2 pt-2 border-t">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
@@ -999,7 +1217,7 @@ export default function SamplingPage() {
                 </div>
 
                 {formData.members.length === 0 ? (
-                  <p className="text-xs text-muted-foreground italic p-2 rounded bg-muted/30">
+                  <p className="text-xs text-muted-foreground italic p-2.5 rounded-lg bg-muted/30">
                     Belum ada anggota tim tambahan. Anda dapat menambahkan peneliti lain yang terlibat dalam sampling ini.
                   </p>
                 ) : (
@@ -1058,9 +1276,9 @@ export default function SamplingPage() {
                 )}
               </div>
 
-              {/* Bagian 4: Catatan Lapangan */}
+              {/* Bagian 5: Catatan Lapangan */}
               <div className="space-y-1.5 pt-2 border-t">
-                <Label htmlFor="field_notes">Catatan Kondisi Lapangan & Log</Label>
+                <Label htmlFor="field_notes">Catatan Kondisi Lapangan & Log Pengamatan</Label>
                 <textarea
                   id="field_notes"
                   rows={3}
@@ -1083,7 +1301,7 @@ export default function SamplingPage() {
               >
                 Batal
               </Button>
-              <Button type="submit" disabled={formSubmitting}>
+              <Button type="submit" disabled={formSubmitting || photoUploading}>
                 {formSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {isEditing ? "Simpan Perubahan" : "Tambah Sampling"}
               </Button>

@@ -119,6 +119,7 @@ CREATE TABLE IF NOT EXISTS sampling_events (
     sampling_time TIME,
     weather_condition VARCHAR(50),
     field_notes TEXT,
+    image_url TEXT,
     recorded_by UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
