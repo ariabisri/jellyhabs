@@ -822,23 +822,23 @@ export default function EventsPage() {
 
                             {/* Grid 2: Deskripsi, Dampak & Tindakan Respon */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                              <div className="p-3.5 rounded-lg bg-card border shadow-2xs space-y-1">
+                              <div className="p-3.5 rounded-lg bg-card border shadow-2xs space-y-1 min-w-0 overflow-hidden">
                                 <h4 className="text-xs font-bold text-foreground">Kronologi & Deskripsi</h4>
-                                <p className="text-xs text-muted-foreground leading-relaxed pt-1">
+                                <p className="text-xs text-muted-foreground leading-relaxed pt-1 break-words whitespace-pre-wrap [overflow-wrap:anywhere]">
                                   {e.description || "Tidak ada deskripsi rinci yang dicatat."}
                                 </p>
                               </div>
 
-                              <div className="p-3.5 rounded-lg bg-card border shadow-2xs space-y-1">
+                              <div className="p-3.5 rounded-lg bg-card border shadow-2xs space-y-1 min-w-0 overflow-hidden">
                                 <h4 className="text-xs font-bold text-foreground">Dampak Lingkungan & Sosial</h4>
-                                <p className="text-xs text-muted-foreground leading-relaxed pt-1">
+                                <p className="text-xs text-muted-foreground leading-relaxed pt-1 break-words whitespace-pre-wrap [overflow-wrap:anywhere]">
                                   {e.impact_assessment || "Tidak ada laporan dampak spesifik."}
                                 </p>
                               </div>
 
-                              <div className="p-3.5 rounded-lg bg-card border shadow-2xs space-y-1">
+                              <div className="p-3.5 rounded-lg bg-card border shadow-2xs space-y-1 min-w-0 overflow-hidden">
                                 <h4 className="text-xs font-bold text-foreground">Tindakan Respon & Mitigasi</h4>
-                                <p className="text-xs text-muted-foreground leading-relaxed pt-1">
+                                <p className="text-xs text-muted-foreground leading-relaxed pt-1 break-words whitespace-pre-wrap [overflow-wrap:anywhere]">
                                   {e.response_action || "Tidak ada catatan tindakan mitigasi."}
                                 </p>
                               </div>
@@ -1269,7 +1269,7 @@ export default function EventsPage() {
                 4. Deskripsi, Dampak & Tindakan Respon
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 min-w-0">
                   <Label htmlFor="description">Kronologi & Deskripsi</Label>
                   <textarea
                     id="description"
@@ -1277,31 +1277,31 @@ export default function EventsPage() {
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     placeholder="Catatan kronologi kejadian, perubahan warna air laut, luas area..."
-                    className="w-full text-xs p-2.5 rounded-lg border bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full text-xs p-2.5 rounded-lg border bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary break-words whitespace-pre-wrap [overflow-wrap:anywhere]"
                   />
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label htmlFor="impact_assessment">Dampak Lingkungan</Label>
+                <div className="space-y-1.5 min-w-0">
+                  <Label htmlFor="impact_assessment">Dampak Lingkungan & Sosial</Label>
                   <textarea
                     id="impact_assessment"
                     rows={3}
                     value={formData.impact_assessment}
                     onChange={(e) => setFormData({ ...formData, impact_assessment: e.target.value })}
                     placeholder="Potensi keracunan kerang, gangguan wisata, kematian ikan..."
-                    className="w-full text-xs p-2.5 rounded-lg border bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full text-xs p-2.5 rounded-lg border bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary break-words whitespace-pre-wrap [overflow-wrap:anywhere]"
                   />
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label htmlFor="response_action">Tindakan Mitigasi</Label>
+                <div className="space-y-1.5 min-w-0">
+                  <Label htmlFor="response_action">Tindakan Respon & Mitigasi</Label>
                   <textarea
                     id="response_action"
                     rows={3}
                     value={formData.response_action}
                     onChange={(e) => setFormData({ ...formData, response_action: e.target.value })}
                     placeholder="Himbauan publik, penutupan pantai sementara, sampling lanjutan..."
-                    className="w-full text-xs p-2.5 rounded-lg border bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full text-xs p-2.5 rounded-lg border bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary break-words whitespace-pre-wrap [overflow-wrap:anywhere]"
                   />
                 </div>
               </div>

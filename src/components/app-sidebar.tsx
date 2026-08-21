@@ -91,7 +91,7 @@ const navData: NavGroup[] = [
           },
           {
             title: "Plankton & Ubur-ubur",
-            url: "/monitoring/stations/plankton",
+            url: "/species",
             icon: Bug,
           },
         ],
