@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -830,7 +831,18 @@ export default function EventsPage() {
                               </div>
 
                               <div className="p-3.5 rounded-lg bg-card border shadow-2xs space-y-1 min-w-0 overflow-hidden">
-                                <h4 className="text-xs font-bold text-foreground">Dampak Lingkungan & Sosial</h4>
+                                <div className="flex items-center justify-between">
+                                  <h4 className="text-xs font-bold text-foreground">Dampak Lingkungan & Sosial</h4>
+                                  {e.event_type === "Jellyfish Bloom" && (
+                                    <Link
+                                      href={`/events/stings?bloom_event_id=${e.id}`}
+                                      className="text-[10px] text-amber-500 hover:underline flex items-center gap-1 font-semibold"
+                                    >
+                                      <ShieldAlert className="size-3" />
+                                      Data Korban Sengatan &rarr;
+                                    </Link>
+                                  )}
+                                </div>
                                 <p className="text-xs text-muted-foreground leading-relaxed pt-1 break-words whitespace-pre-wrap [overflow-wrap:anywhere]">
                                   {e.impact_assessment || "Tidak ada laporan dampak spesifik."}
                                 </p>

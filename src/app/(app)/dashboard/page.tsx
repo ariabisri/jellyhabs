@@ -28,6 +28,7 @@ import {
   Calendar,
   ArrowRight,
   ShieldAlert,
+  Users,
   Layers,
   Loader2,
   Sparkles,
@@ -162,6 +163,23 @@ export default function DashboardPage() {
   // Stations List for dropdown
   const [stations, setStations] = React.useState<StationOption[]>([])
 
+  // Sting Records Stats State
+  const [stingStats, setStingStats] = React.useState<{
+    summary: {
+      total_incidents: number
+      total_victims: number
+      victims_2026: number
+      male_victims: number
+      female_victims: number
+      top_beach: { name: string; victims: number } | null
+    }
+    yearly: { year: number; incidents: number; victims: number }[]
+    monthly: { month_num: number; month_name: string; victims: number; incidents: number }[]
+    beaches: { location_name: string; incidents: number; victims: number }[]
+    gender_distribution: { name: string; value: number }[]
+  } | null>(null)
+  const [stingLoading, setStingLoading] = React.useState(true)
+
   // Fetch Summary Stats
   const fetchStats = React.useCallback(async () => {
     try {
@@ -244,12 +262,29 @@ export default function DashboardPage() {
     }
   }, [])
 
+  // Fetch Sting Stats
+  const fetchStingStats = React.useCallback(async () => {
+    try {
+      setStingLoading(true)
+      const res = await fetch("/api/stings/stats")
+      const data = await res.json()
+      if (data.success) {
+        setStingStats(data.data)
+      }
+    } catch (err) {
+      console.error("Error fetching sting stats:", err)
+    } finally {
+      setStingLoading(false)
+    }
+  }, [])
+
   React.useEffect(() => {
     fetchStats()
     fetchEventDist()
     fetchSpeciesDist()
     fetchStations()
-  }, [fetchStats, fetchEventDist, fetchSpeciesDist, fetchStations])
+    fetchStingStats()
+  }, [fetchStats, fetchEventDist, fetchSpeciesDist, fetchStations, fetchStingStats])
 
   React.useEffect(() => {
     fetchTrend()
@@ -281,6 +316,7 @@ export default function DashboardPage() {
               fetchTrend()
               fetchEventDist()
               fetchSpeciesDist()
+              fetchStingStats()
             }}
             className="p-2 text-xs font-semibold rounded-lg border bg-card hover:bg-muted transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
             title="Segarkan Data"
@@ -674,6 +710,142 @@ export default function DashboardPage() {
             ) : (
               <div className="h-[240px] flex items-center justify-center text-xs text-muted-foreground">
                 Belum ada data spesies terdaftar
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* JELLYFISH STING IMPACT SECTION */}
+      <div className="space-y-4 pt-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/60 pb-3">
+          <div>
+            <h2 className="text-lg font-bold tracking-tight text-foreground flex items-center gap-2">
+              <ShieldAlert className="h-5 w-5 text-amber-500" />
+              Dampak Sengatan Ubur-Ubur (Pesisir Selatan Jawa)
+            </h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Analisis rekaman korban sengatan (*jellyfish stings*) pada periode blooming di pesisir pantai Gunung Kidul (2021–2026).
+            </p>
+          </div>
+          <Link
+            href="/events/stings"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 text-xs font-semibold transition-colors shadow-2xs self-start sm:self-auto"
+          >
+            <span>Buka Data Korban Sengatan</span>
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {/* Card 1: Monthly Peak Trend */}
+          <Card className="col-span-1 md:col-span-2 lg:col-span-2">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-primary" />
+                    Tren Korban Sengatan per Bulan
+                  </CardTitle>
+                  <CardDescription>
+                    Puncak insiden terjadi pada periode musim muson timur (Juli: 595 korban, Mei: 119 korban)
+                  </CardDescription>
+                </div>
+                <Badge variant="outline" className="bg-amber-500/10 text-amber-500 border-amber-500/30 text-[10px]">
+                  Puncak: Juli
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-2">
+              {stingLoading ? (
+                <div className="h-[250px] flex items-center justify-center">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : stingStats && stingStats.monthly.length > 0 ? (
+                <BarChart
+                  title="Tren Korban per Bulan"
+                  xAxisData={stingStats.monthly.map((m) => m.month_name)}
+                  seriesData={stingStats.monthly.map((m) => m.victims)}
+                  yAxisLabel="Korban"
+                />
+              ) : (
+                <div className="h-[250px] flex items-center justify-center text-xs text-muted-foreground">
+                  Belum ada data rekaman bulanan
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Card 2: Demographics Distribution */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Users className="h-4 w-4 text-cyan-500" />
+                Demografi Korban
+              </CardTitle>
+              <CardDescription>Proporsi jenis kelamin korban sengatan</CardDescription>
+            </CardHeader>
+            <CardContent className="pt-2">
+              {stingLoading ? (
+                <div className="h-[250px] flex items-center justify-center">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : stingStats && stingStats.gender_distribution.length > 0 ? (
+                <PieChart
+                  data={stingStats.gender_distribution.map((g) => {
+                    let color = "#3A86FF"
+                    if (g.name === "Perempuan") color = "#FF006E"
+                    else if (g.name === "Tidak Dicatat") color = "#8338EC"
+                    return {
+                      name: g.name,
+                      value: g.value,
+                      itemStyle: { color },
+                    }
+                  })}
+                  height="250px"
+                />
+              ) : (
+                <div className="h-[250px] flex items-center justify-center text-xs text-muted-foreground">
+                  Belum ada data demografi
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Card 3: Top Affected Beaches */}
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-red-500" />
+                  Pantai dengan Korban Terbanyak (Top Hotspots)
+                </CardTitle>
+                <CardDescription>
+                  Distribusi akumulasi korban sengatan di sepanjang pesisir pantai selatan Gunung Kidul
+                </CardDescription>
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Total Korban: <strong className="text-foreground">{stingStats?.summary.total_victims || 0}</strong>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-2">
+            {stingLoading ? (
+              <div className="h-[220px] flex items-center justify-center">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              </div>
+            ) : stingStats && stingStats.beaches.length > 0 ? (
+              <BarChart
+                title="Top Pantai Terdampak"
+                xAxisData={stingStats.beaches.slice(0, 7).map((b) => b.location_name.replace("Pantai ", ""))}
+                seriesData={stingStats.beaches.slice(0, 7).map((b) => b.victims)}
+                yAxisLabel="Korban"
+              />
+            ) : (
+              <div className="h-[220px] flex items-center justify-center text-xs text-muted-foreground">
+                Belum ada data pantai
               </div>
             )}
           </CardContent>

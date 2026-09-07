@@ -178,6 +178,29 @@ export async function GET(
     `
     const eventsRes = await query(eventsSql, [stationId])
 
+    // Fetch related beaches
+    const beachesSql = `
+      SELECT 
+        b.id,
+        b.name,
+        b.village,
+        b.subdistrict,
+        b.regency,
+        b.latitude,
+        b.longitude,
+        b.sar_post_name,
+        b.description,
+        b.status,
+        COUNT(sr.id)::int AS incident_count,
+        COALESCE(SUM(sr.victim_count), 0)::int AS total_victims
+      FROM beaches b
+      LEFT JOIN sting_records sr ON b.id = sr.beach_id
+      WHERE b.station_id = $1
+      GROUP BY b.id
+      ORDER BY total_victims DESC, b.name ASC
+    `
+    const beachesRes = await query(beachesSql, [stationId])
+
     return NextResponse.json({
       success: true,
       data: {
@@ -186,11 +209,13 @@ export async function GET(
         water_quality_records: wqRes.rows,
         plankton_records: planktonRes.rows,
         bloom_events: eventsRes.rows,
+        beaches: beachesRes.rows,
         counts: {
           sampling_count: samplingRes.rows.length,
           water_quality_count: wqRes.rows.length,
           plankton_count: planktonRes.rows.length,
           bloom_events_count: eventsRes.rows.length,
+          beaches_count: beachesRes.rows.length,
         },
       },
     })
