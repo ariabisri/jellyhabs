@@ -52,6 +52,20 @@ export interface BloomEventFeature {
   avg_temperature?: number | null
 }
 
+export interface StingHotspotFeature {
+  id: string
+  location_name: string
+  total_victims: number
+  total_incidents: number
+  male_victims: number
+  female_victims: number
+  latest_incident_date: string | null
+  earliest_incident_date: string | null
+  severity_levels?: string[]
+  latitude: number
+  longitude: number
+}
+
 // Custom DivIcons for Leaflet
 function createStationIcon() {
   return L.divIcon({
@@ -164,21 +178,78 @@ function createJellyfishIcon(alertStatus: string) {
   })
 }
 
+function createStingHotspotIcon(totalVictims: number) {
+  const isHigh = totalVictims > 50
+  const isMedium = totalVictims > 15
+  const bg = isHigh
+    ? "linear-gradient(135deg, #D90429, #EF233C)"
+    : isMedium
+    ? "linear-gradient(135deg, #F77F00, #FCBF49)"
+    : "linear-gradient(135deg, #FFB703, #FB8500)"
+
+  const size = isHigh ? 36 : isMedium ? 32 : 28
+
+  return L.divIcon({
+    className: "custom-map-marker sting-marker",
+    html: `
+      <div style="position: relative; width: ${size + 4}px; height: ${size + 4}px; display: flex; align-items: center; justify-content: center;">
+        ${
+          isHigh
+            ? `<div style="
+                position: absolute;
+                width: 100%;
+                height: 100%;
+                border-radius: 50%;
+                background: #D90429;
+                opacity: 0.45;
+                animation: pulse-ring 1.8s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+              "></div>`
+            : ""
+        }
+        <div style="
+          position: relative;
+          background: ${bg};
+          width: ${size}px;
+          height: ${size}px;
+          border-radius: 50%;
+          border: 2px solid #FFFFFF;
+          box-shadow: 0 3px 10px rgba(0,0,0,0.35);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: white;
+          font-weight: bold;
+          font-size: ${isHigh ? "11px" : "10px"};
+        ">
+          ${totalVictims}
+        </div>
+      </div>
+    `,
+    iconSize: [size + 4, size + 4],
+    iconAnchor: [(size + 4) / 2, (size + 4) / 2],
+    popupAnchor: [0, -(size / 2 + 6)],
+  })
+}
+
 export default function MapView({
   stations = [],
   habsEvents = [],
   jellyfishEvents = [],
+  stingHotspots = [],
   showStations = true,
   showHabs = true,
   showJellyfish = true,
+  showStingHotspots = true,
   selectedLocation,
 }: {
   stations?: StationFeature[]
   habsEvents?: BloomEventFeature[]
   jellyfishEvents?: BloomEventFeature[]
+  stingHotspots?: StingHotspotFeature[]
   showStations?: boolean
   showHabs?: boolean
   showJellyfish?: boolean
+  showStingHotspots?: boolean
   selectedLocation?: [number, number] | null
 }) {
   const stationIcon = React.useMemo(() => createStationIcon(), [])
@@ -210,8 +281,8 @@ export default function MapView({
       >
         <ZoomControl position="bottomright" />
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
         {/* LAYER 1: STASIUN MONITORING */}
@@ -371,6 +442,65 @@ export default function MapView({
                       className="text-[11px] font-semibold text-purple-600 hover:text-purple-800 hover:underline"
                     >
                       Lihat Log Kejadian &rarr;
+                    </Link>
+                  </div>
+                </div>
+              </Popup>
+            </Marker>
+          ))}
+
+        {/* LAYER 4: HOTSPOT KORBAN SENGATAN */}
+        {showStingHotspots &&
+          stingHotspots.map((st) => (
+            <Marker
+              key={`sting-${st.id}`}
+              position={[st.latitude, st.longitude]}
+              icon={createStingHotspotIcon(st.total_victims)}
+            >
+              <Popup>
+                <div className="space-y-2 text-xs min-w-[240px] text-gray-900">
+                  <div className="flex items-center justify-between border-b pb-1.5">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-semibold text-[10px]">
+                      Hotspot Sengatan Ubur-Ubur
+                    </span>
+                    <span className="inline-block px-1.5 py-0.5 rounded bg-red-600 text-white font-bold text-[10px]">
+                      {st.total_victims} Korban
+                    </span>
+                  </div>
+
+                  <div>
+                    <h4 className="font-bold text-sm text-gray-900 leading-tight">
+                      {st.location_name}
+                    </h4>
+                    <p className="text-[11px] text-gray-500">
+                      Pesisir Gunung Kidul &bull; {st.total_incidents} Laporan Insiden
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-1.5 p-2 rounded bg-gray-50 border border-gray-100 text-[11px]">
+                    <div>
+                      <span className="text-gray-400 block text-[10px]">Laki-laki:</span>
+                      <strong className="text-blue-700">{st.male_victims} orang</strong>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 block text-[10px]">Perempuan:</span>
+                      <strong className="text-pink-700">{st.female_victims} orang</strong>
+                    </div>
+                  </div>
+
+                  {st.latest_incident_date && (
+                    <p className="text-[10px] text-gray-500">
+                      Insiden terakhir tercatat: <span className="font-semibold text-gray-700">{st.latest_incident_date}</span>
+                    </p>
+                  )}
+
+                  <div className="pt-1.5 border-t flex justify-between items-center">
+                    <span className="text-[10px] text-gray-400">Database 2021–2026</span>
+                    <Link
+                      href={`/events/stings?location=${encodeURIComponent(st.location_name)}`}
+                      className="text-[11px] font-semibold text-amber-700 hover:text-amber-900 hover:underline"
+                    >
+                      Buka Rincian &rarr;
                     </Link>
                   </div>
                 </div>

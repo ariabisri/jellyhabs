@@ -22,7 +22,7 @@ import {
   Loader2,
   Info,
 } from "lucide-react"
-import { StationFeature, BloomEventFeature } from "@/components/map/map-view"
+import { StationFeature, BloomEventFeature, StingHotspotFeature } from "@/components/map/map-view"
 import { cn } from "@/lib/utils"
 
 interface SpatialSummary {
@@ -45,6 +45,7 @@ export default function WebGISPage() {
   const [showStations, setShowStations] = React.useState(true)
   const [showHabs, setShowHabs] = React.useState(true)
   const [showJellyfish, setShowJellyfish] = React.useState(true)
+  const [showStings, setShowStings] = React.useState(true)
 
   // Filters
   const [search, setSearch] = React.useState("")
@@ -56,6 +57,7 @@ export default function WebGISPage() {
   const [stations, setStations] = React.useState<StationFeature[]>([])
   const [habsEvents, setHabsEvents] = React.useState<BloomEventFeature[]>([])
   const [jellyfishEvents, setJellyfishEvents] = React.useState<BloomEventFeature[]>([])
+  const [stingHotspots, setStingHotspots] = React.useState<StingHotspotFeature[]>([])
   const [summary, setSummary] = React.useState<SpatialSummary | null>(null)
   const [loading, setLoading] = React.useState(true)
 
@@ -124,6 +126,24 @@ export default function WebGISPage() {
 
       setHabsEvents(habs)
       setJellyfishEvents(jelly)
+
+      // 3. Fetch Sting Hotspots GeoJSON
+      try {
+        const stingsRes = await fetch("/api/spatial/stings")
+        const stingsGeoJson = await stingsRes.json()
+        if (stingsGeoJson.features) {
+          const parsedStings: StingHotspotFeature[] = stingsGeoJson.features.map(
+            (f: { properties: StingHotspotFeature; geometry: { coordinates: [number, number] } }) => ({
+              ...f.properties,
+              longitude: f.geometry.coordinates[0],
+              latitude: f.geometry.coordinates[1],
+            })
+          )
+          setStingHotspots(parsedStings)
+        }
+      } catch (stErr) {
+        console.error("Error fetching sting hotspots:", stErr)
+      }
     } catch (err) {
       console.error("Error fetching WebGIS spatial data:", err)
     } finally {
@@ -279,6 +299,25 @@ export default function WebGISPage() {
                   </div>
                   <Badge variant="secondary" className="text-[10px] font-mono">{jellyfishEvents.length}</Badge>
                 </label>
+
+                {/* Toggle Sting Hotspots */}
+                <label className="flex items-center justify-between p-2 rounded-lg border bg-card hover:bg-muted/40 transition-colors cursor-pointer">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={showStings}
+                      onChange={(e) => setShowStings(e.target.checked)}
+                      className="rounded text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                    />
+                    <div className="flex items-center gap-1.5 font-medium text-foreground">
+                      <span className="h-2.5 w-2.5 rounded-full bg-[#F77F00] inline-block" />
+                      <span>Hotspot Sengatan</span>
+                    </div>
+                  </div>
+                  <Badge variant="secondary" className="text-[10px] font-mono text-amber-500 bg-amber-500/10">
+                    {stingHotspots.length} Pantai
+                  </Badge>
+                </label>
               </div>
             </div>
 
@@ -377,9 +416,11 @@ export default function WebGISPage() {
               stations={stations}
               habsEvents={habsEvents}
               jellyfishEvents={jellyfishEvents}
+              stingHotspots={stingHotspots}
               showStations={showStations}
               showHabs={showHabs}
               showJellyfish={showJellyfish}
+              showStingHotspots={showStings}
             />
           </CardContent>
         </Card>

@@ -35,9 +35,51 @@ erDiagram
     bloom_events ||--o{ bloom_event_water_quality : "terkait"
     water_quality_records ||--o{ bloom_event_water_quality : "terkait"
     bloom_events ||--o{ event_report_sources : "memiliki sumber"
+    bloom_events ||--o{ sting_records : "berdampak (opsional)"
+    monitoring_stations ||--o{ sting_records : "berlokasi di (opsional)"
+    monitoring_stations ||--o{ beaches : "membawahi"
+    beaches ||--o{ sting_records : "terjadi di (opsional)"
+    users ||--o{ sting_records : "mencatat (reported_by)"
 
     datasets }o--o| sampling_events : "merujuk (opsional)"
     datasets }o--o| monitoring_stations : "merujuk (opsional)"
+
+    beaches {
+        uuid id PK
+        uuid station_id FK
+        varchar name
+        varchar village
+        varchar subdistrict
+        varchar regency
+        decimal latitude
+        decimal longitude
+        varchar sar_post_name
+        text description
+        varchar status
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    sting_records {
+        uuid id PK
+        date incident_date
+        time incident_time
+        varchar location_name
+        decimal latitude
+        decimal longitude
+        uuid station_id FK
+        uuid beach_id FK
+        uuid bloom_event_id FK
+        int victim_count
+        varchar victim_name
+        varchar victim_age
+        varchar victim_gender
+        varchar severity_level
+        text treatment_notes
+        uuid reported_by FK
+        timestamp created_at
+        timestamp updated_at
+    }
 
     roles {
         uuid id PK
@@ -448,3 +490,51 @@ Manajemen file dataset (CSV, PDF, Excel) yang diunggah ke sistem.
 | `station_id` | `UUID` | FK → `monitoring_stations.id` (nullable) |
 | `sampling_event_id` | `UUID` | FK → `sampling_events.id` (nullable) |
 | `created_at` | `TIMESTAMPTZ` | Auto-generated |
+
+---
+
+### 14. `sting_records` *(BARU)*
+Pencatatan insiden korban sengatan ubur-ubur terhadap manusia di wilayah pesisir.
+
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| `id` | `UUID` | Primary Key, default `gen_random_uuid()` |
+| `incident_date` | `DATE` | Tanggal kejadian insiden |
+| `incident_time` | `TIME` | Waktu/jam kejadian (nullable) |
+| `location_name` | `VARCHAR(255)` | Nama pantai/lokasi (e.g. `'Pantai Sepanjang'`, `'Pantai Kukup'`) |
+| `latitude` | `DECIMAL(10,7)` | Lintang lokasi pantai untuk visualisasi spasial/GIS |
+| `longitude` | `DECIMAL(10,7)` | Bujur lokasi pantai untuk visualisasi spasial/GIS |
+| `station_id` | `UUID` | FK → `monitoring_stations.id` (stasiun pemantauan yang membawahi wilayah) |
+| `beach_id` | `UUID` | FK → `beaches.id` (master pantai binaan stasiun, nullable) |
+| `bloom_event_id` | `UUID` | FK → `bloom_events.id` (opsional jika terasosiasi dengan kejadian bloom) |
+| `victim_count` | `INTEGER` | Jumlah korban (default 1) |
+| `victim_name` | `VARCHAR(255)` | Nama korban (nullable) |
+| `victim_age` | `VARCHAR(50)` | Usia korban (nullable, e.g. `'24 tahun'`, `'7 tahun'`) |
+| `victim_gender` | `VARCHAR(20)` | Jenis kelamin: `'Laki-laki'`, `'Perempuan'` (nullable) |
+| `severity_level` | `VARCHAR(50)` | Tingkat keparahan / gejala (e.g. `'Ringan'`, `'Sesak Napas'`, `'Kram'`) |
+| `treatment_notes` | `TEXT` | Catatan penanganan / pertolongan pertama |
+| `reported_by` | `UUID` | FK → `users.id` (pencatat laporan) |
+| `created_at` | `TIMESTAMPTZ` | Auto-generated |
+| `updated_at` | `TIMESTAMPTZ` | Auto-updated |
+
+---
+
+### 15. `beaches` *(BARU)*
+Master data pantai-pantai pesisir yang berada di bawah wilayah kerja/binaan suatu stasiun pemantauan laut.
+
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| `id` | `UUID` | Primary Key, default `gen_random_uuid()` |
+| `station_id` | `UUID` | FK → `monitoring_stations.id` ON DELETE CASCADE |
+| `name` | `VARCHAR(150)` | Nama pantai (e.g. `'Pantai Kukup'`, `'Pantai Drini'`) |
+| `village` | `VARCHAR(100)` | Kelurahan / Desa lokasi pantai (nullable) |
+| `subdistrict` | `VARCHAR(100)` | Kecamatan (nullable, e.g. `'Tanjungsari'`, `'Tepus'`) |
+| `regency` | `VARCHAR(100)` | Kabupaten (default `'Gunungkidul'`) |
+| `latitude` | `DECIMAL(10,7)` | Titik koordinat Lintang pantai |
+| `longitude` | `DECIMAL(10,7)` | Titik koordinat Bujur pantai |
+| `sar_post_name` | `VARCHAR(150)` | Nama posko SAR Linmas / petugas pengamanan pantai |
+| `description` | `TEXT` | Deskripsi karakteristik pantai, aktivitas wisata, atau risiko ubur-ubur |
+| `status` | `VARCHAR(20)` | Status operasional: `'aktif'`, `'nonaktif'` (default `'aktif'`) |
+| `created_at` | `TIMESTAMPTZ` | Auto-generated |
+| `updated_at` | `TIMESTAMPTZ` | Auto-updated |
+
