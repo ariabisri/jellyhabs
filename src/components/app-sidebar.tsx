@@ -17,6 +17,7 @@ import {
   ChevronRight,
   LogOut,
   Shield,
+  ShieldAlert,
   LogIn,
   Eye,
   Loader2,
@@ -110,6 +111,11 @@ const navData: NavGroup[] = [
         title: "HABs & Jellyfish Bloom",
         url: "/events/habs",
         icon: Activity,
+      },
+      {
+        title: "Korban Sengatan",
+        url: "/events/stings",
+        icon: ShieldAlert,
       },
     ],
   },
@@ -320,29 +326,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             </button>
           </>
         ) : (
-          <>
-            <div className="flex items-center gap-3 p-2.5 rounded-xl bg-sidebar-accent/30 border border-sidebar-border/50 mb-2">
-              <div className="flex size-8 items-center justify-center rounded-lg bg-muted text-muted-foreground font-semibold text-xs shrink-0">
-                <Eye className="size-4 text-primary" />
-              </div>
-              <div className="flex flex-col min-w-0 flex-1">
-                <span className="text-xs font-semibold truncate text-foreground">
-                  Pengunjung (Guest)
-                </span>
-                <span className="text-[10px] text-muted-foreground truncate">
-                  Mode Publik (Read-Only)
-                </span>
-              </div>
+          <div className="flex items-center gap-3 p-2.5 rounded-xl bg-sidebar-accent/30 border border-sidebar-border/50">
+            <div className="flex size-8 items-center justify-center rounded-lg bg-muted text-muted-foreground font-semibold text-xs shrink-0">
+              <Eye className="size-4 text-primary" />
             </div>
-
-            <a
-              href="/login"
-              className="flex w-full items-center justify-center gap-2 px-3 py-2 text-xs font-semibold text-primary-foreground bg-primary hover:bg-primary/90 rounded-lg shadow-md transition-all duration-200"
-            >
-              <LogIn className="size-3.5" />
-              <span>Masuk / Login</span>
-            </a>
-          </>
+            <div className="flex flex-col min-w-0 flex-1">
+              <span className="text-xs font-semibold truncate text-foreground">
+                Portal Publik
+              </span>
+              <span className="text-[10px] text-muted-foreground truncate">
+                Akses Terbuka (Read-Only)
+              </span>
+            </div>
+          </div>
         )}
       </div>
 
