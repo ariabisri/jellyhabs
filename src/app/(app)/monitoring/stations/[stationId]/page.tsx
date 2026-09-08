@@ -50,6 +50,9 @@ import {
   Loader2,
   AlertCircle,
   CheckCircle2,
+  ShieldAlert,
+  Plus,
+  Trash2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-context"
@@ -111,6 +114,21 @@ interface BloomEventRecord {
   reporter_name: string | null
 }
 
+interface BeachDetail {
+  id: string
+  name: string
+  village?: string | null
+  subdistrict?: string | null
+  regency?: string | null
+  latitude: number
+  longitude: number
+  sar_post_name?: string | null
+  description?: string | null
+  status: string
+  incident_count: number
+  total_victims: number
+}
+
 interface StationDetail {
   id: string
   station_code: string
@@ -127,15 +145,17 @@ interface StationDetail {
   water_quality_records: WaterQualityRecord[]
   plankton_records: PlanktonRecord[]
   bloom_events: BloomEventRecord[]
+  beaches?: BeachDetail[]
   counts: {
     sampling_count: number
     water_quality_count: number
     plankton_count: number
     bloom_events_count: number
+    beaches_count?: number
   }
 }
 
-type TabKey = "info" | "water-quality" | "plankton" | "sampling" | "bloom-events"
+type TabKey = "info" | "beaches" | "water-quality" | "plankton" | "sampling" | "bloom-events"
 
 export default function StationDetailPage({
   params,
@@ -164,6 +184,27 @@ export default function StationDetailPage({
   })
   const [formSubmitting, setFormSubmitting] = React.useState(false)
   const [formError, setFormError] = React.useState<string | null>(null)
+
+  // Beach CRUD State
+  const [isAddBeachOpen, setIsAddBeachOpen] = React.useState(false)
+  const [isEditBeachOpen, setIsEditBeachOpen] = React.useState(false)
+  const [isDeleteBeachOpen, setIsDeleteBeachOpen] = React.useState(false)
+  const [selectedBeach, setSelectedBeach] = React.useState<BeachDetail | null>(null)
+  const [beachSubmitting, setBeachSubmitting] = React.useState(false)
+  const [beachFormError, setBeachFormError] = React.useState<string | null>(null)
+
+  const initialBeachForm = {
+    name: "",
+    village: "",
+    subdistrict: "",
+    regency: "Gunungkidul",
+    latitude: "",
+    longitude: "",
+    sar_post_name: "Posko SAR Linmas Wilayah II Baron",
+    description: "",
+    status: "aktif" as "aktif" | "nonaktif",
+  }
+  const [beachFormData, setBeachFormData] = React.useState(initialBeachForm)
 
   // Notification Toast
   const [banner, setBanner] = React.useState<{
@@ -272,6 +313,168 @@ export default function StationDetailPage({
     }
   }
 
+  const handleOpenAddBeach = () => {
+    setBeachFormData({
+      ...initialBeachForm,
+      latitude: station?.latitude ? station.latitude.toString() : "-8.1340",
+      longitude: station?.longitude ? station.longitude.toString() : "110.5500",
+    })
+    setBeachFormError(null)
+    setIsAddBeachOpen(true)
+  }
+
+  const handleOpenEditBeach = (beach: BeachDetail) => {
+    setSelectedBeach(beach)
+    setBeachFormData({
+      name: beach.name,
+      village: beach.village || "",
+      subdistrict: beach.subdistrict || "",
+      regency: beach.regency || "Gunungkidul",
+      latitude: beach.latitude.toString(),
+      longitude: beach.longitude.toString(),
+      sar_post_name: beach.sar_post_name || "",
+      description: beach.description || "",
+      status: (beach.status === "nonaktif" ? "nonaktif" : "aktif") as "aktif" | "nonaktif",
+    })
+    setBeachFormError(null)
+    setIsEditBeachOpen(true)
+  }
+
+  const handleOpenDeleteBeach = (beach: BeachDetail) => {
+    setSelectedBeach(beach)
+    setIsDeleteBeachOpen(true)
+  }
+
+  const handleAddBeachSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!station) return
+    setBeachFormError(null)
+
+    const lat = parseFloat(beachFormData.latitude)
+    const lng = parseFloat(beachFormData.longitude)
+
+    if (isNaN(lat) || lat < -90 || lat > 90) {
+      setBeachFormError("Latitude harus berupa angka antara -90 dan 90")
+      return
+    }
+    if (isNaN(lng) || lng < -180 || lng > 180) {
+      setBeachFormError("Longitude harus berupa angka antara -180 dan 180")
+      return
+    }
+
+    try {
+      setBeachSubmitting(true)
+      const res = await fetch("/api/beaches", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          station_id: station.id,
+          name: beachFormData.name.trim(),
+          village: beachFormData.village.trim() || null,
+          subdistrict: beachFormData.subdistrict.trim() || null,
+          regency: beachFormData.regency.trim() || "Gunungkidul",
+          latitude: lat,
+          longitude: lng,
+          sar_post_name: beachFormData.sar_post_name.trim() || null,
+          description: beachFormData.description.trim() || null,
+          status: beachFormData.status,
+        }),
+      })
+
+      const data = await res.json()
+      if (!res.ok || !data.success) {
+        setBeachFormError(data.error || "Gagal menambahkan pantai")
+        return
+      }
+
+      showBanner("success", `Pantai "${beachFormData.name}" berhasil ditambahkan`)
+      setIsAddBeachOpen(false)
+      fetchStationDetail()
+    } catch (err) {
+      console.error("Error creating beach:", err)
+      setBeachFormError("Terjadi kesalahan jaringan saat menambahkan pantai")
+    } finally {
+      setBeachSubmitting(false)
+    }
+  }
+
+  const handleEditBeachSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedBeach) return
+    setBeachFormError(null)
+
+    const lat = parseFloat(beachFormData.latitude)
+    const lng = parseFloat(beachFormData.longitude)
+
+    if (isNaN(lat) || lat < -90 || lat > 90) {
+      setBeachFormError("Latitude harus berupa angka antara -90 dan 90")
+      return
+    }
+    if (isNaN(lng) || lng < -180 || lng > 180) {
+      setBeachFormError("Longitude harus berupa angka antara -180 dan 180")
+      return
+    }
+
+    try {
+      setBeachSubmitting(true)
+      const res = await fetch(`/api/beaches/${selectedBeach.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: beachFormData.name.trim(),
+          village: beachFormData.village.trim() || null,
+          subdistrict: beachFormData.subdistrict.trim() || null,
+          regency: beachFormData.regency.trim() || "Gunungkidul",
+          latitude: lat,
+          longitude: lng,
+          sar_post_name: beachFormData.sar_post_name.trim() || null,
+          description: beachFormData.description.trim() || null,
+          status: beachFormData.status,
+        }),
+      })
+
+      const data = await res.json()
+      if (!res.ok || !data.success) {
+        setBeachFormError(data.error || "Gagal memperbarui data pantai")
+        return
+      }
+
+      showBanner("success", `Data pantai "${beachFormData.name}" berhasil diperbarui`)
+      setIsEditBeachOpen(false)
+      fetchStationDetail()
+    } catch (err) {
+      console.error("Error updating beach:", err)
+      setBeachFormError("Terjadi kesalahan jaringan saat memperbarui data pantai")
+    } finally {
+      setBeachSubmitting(false)
+    }
+  }
+
+  const handleDeleteBeach = async () => {
+    if (!selectedBeach) return
+    try {
+      setBeachSubmitting(true)
+      const res = await fetch(`/api/beaches/${selectedBeach.id}`, {
+        method: "DELETE",
+      })
+
+      const data = await res.json()
+      if (!res.ok || !data.success) {
+        showBanner("error", data.error || "Gagal menghapus pantai")
+        return
+      }
+
+      showBanner("success", `Pantai "${selectedBeach.name}" berhasil dihapus`)
+      setIsDeleteBeachOpen(false)
+      fetchStationDetail()
+    } catch (err) {
+      console.error("Error deleting beach:", err)
+      showBanner("error", "Terjadi kesalahan jaringan saat menghapus pantai")
+    } finally {
+      setBeachSubmitting(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-24 text-muted-foreground">
@@ -303,6 +506,11 @@ export default function StationDetailPage({
 
   const tabs: { key: TabKey; label: string; count?: number }[] = [
     { key: "info", label: "Info Stasiun" },
+    {
+      key: "beaches",
+      label: "Daftar Pantai",
+      count: station.beaches?.length || 0,
+    },
     {
       key: "water-quality",
       label: "Kualitas Air",
@@ -506,7 +714,214 @@ export default function StationDetailPage({
               </p>
             </CardContent>
           </Card>
+
+          {/* Cakupan Pemantauan Insiden Sengatan Ubur-Ubur */}
+          {(station.station_code === "ST-03" || station.name.toLowerCase().includes("selatan")) && (
+            <Card className="md:col-span-4 border-amber-500/30 bg-amber-500/5">
+              <CardHeader className="pb-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <ShieldAlert className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0" />
+                    <div>
+                      <CardTitle className="text-base font-semibold text-amber-800 dark:text-amber-300">
+                        Cakupan Pemantauan Insiden Sengatan Ubur-Ubur
+                      </CardTitle>
+                      <CardDescription className="text-xs text-muted-foreground mt-0.5">
+                        Gugusan pantai wisata sengatan ubur-ubur di pesisir selatan Jawa berada dalam yurisdiksi pemantauan stasiun ini.
+                      </CardDescription>
+                    </div>
+                  </div>
+                  <Link href={`/events/stings?station_id=${station.id}`}>
+                    <Button variant="outline" size="sm" className="border-amber-500/40 hover:bg-amber-500/15 text-xs text-amber-800 dark:text-amber-300 w-full sm:w-auto">
+                      Lihat Database Sengatan
+                      <ChevronRight className="ml-1.5 h-3.5 w-3.5" />
+                    </Button>
+                  </Link>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    Pantai-pantai lokasi kejadian korban yang terpantau aktif oleh SAR Linmas & posko stasiun ini:
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      "Pantai Kukup",
+                      "Pantai Sepanjang",
+                      "Pantai Krakal",
+                      "Pantai Drini",
+                      "Pantai Baron",
+                      "Pantai Sundak",
+                      "Pantai Pulang Sawal (Indrayanti)",
+                      "Pantai Sadranan",
+                      "Pantai Somandeng",
+                      "Pantai Ngandong",
+                      "Pantai Pok Tunggal",
+                      "Pantai Ngrenehan",
+                      "Pantai Ngobaran",
+                    ].map((beach) => (
+                      <span
+                        key={beach}
+                        className="px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-800 dark:text-amber-300 font-medium text-[11px] border border-amber-500/20"
+                      >
+                        {beach}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
+      )}
+
+      {/* Tab: Daftar Pantai */}
+      {activeTab === "beaches" && (
+        <Card>
+          <CardHeader>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <MapPin className="h-5 w-5 text-primary" />
+                  Daftar Pantai Terpantau &mdash; {station.name}
+                </CardTitle>
+                <CardDescription>
+                  Gugusan pantai pesisir yang berada di dalam wilayah kerja pemantauan stasiun ini.
+                </CardDescription>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {authenticated && (
+                  <Button
+                    size="sm"
+                    onClick={handleOpenAddBeach}
+                    className="gap-1.5 shadow-sm"
+                  >
+                    <Plus className="size-4" />
+                    <span>Tambah Pantai</span>
+                  </Button>
+                )}
+                <Link href={`/events/stings?station_id=${station.id}`}>
+                  <Button size="sm" variant="outline" className="text-xs gap-1.5 border-primary/30 text-primary hover:bg-primary/10">
+                    <ShieldAlert className="size-3.5" />
+                    <span>Lihat Seluruh Insiden Sengatan</span>
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {!station.beaches || station.beaches.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                <MapPin className="h-10 w-10 mb-3 opacity-30" />
+                <p className="font-medium">Belum ada data pantai terdaftar</p>
+                <p className="text-xs mt-1">Data pantai yang berada di wilayah stasiun ini akan ditampilkan di sini.</p>
+                {authenticated && (
+                  <Button
+                    size="sm"
+                    onClick={handleOpenAddBeach}
+                    className="mt-4 gap-1.5"
+                  >
+                    <Plus className="size-4" />
+                    <span>Tambah Pantai Sekarang</span>
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12 text-center text-xs font-semibold">No</TableHead>
+                      <TableHead className="text-xs font-semibold">Nama Pantai</TableHead>
+                      <TableHead className="text-xs font-semibold">Wilayah Administrasi</TableHead>
+                      <TableHead className="text-xs font-semibold">Koordinat GPS</TableHead>
+                      <TableHead className="text-xs font-semibold">Posko Pengamanan SAR</TableHead>
+                      <TableHead className="text-xs font-semibold text-center">Insiden / Korban</TableHead>
+                      <TableHead className="text-xs font-semibold text-right">Aksi</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {station.beaches.map((b, idx) => (
+                      <TableRow key={b.id} className="border-border/40 hover:bg-muted/30">
+                        <TableCell className="text-center text-xs text-muted-foreground font-mono">
+                          {idx + 1}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          <div className="font-bold text-foreground flex items-center gap-1.5">
+                            <MapPin className="size-3.5 text-red-500 shrink-0" />
+                            <span>{b.name}</span>
+                          </div>
+                          {b.description && (
+                            <p className="text-[11px] text-muted-foreground line-clamp-1 mt-0.5 max-w-sm">
+                              {b.description}
+                            </p>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          <div className="text-foreground font-medium">
+                            {b.subdistrict ? `Kec. ${b.subdistrict}` : "-"}
+                          </div>
+                          <div className="text-[11px] text-muted-foreground">
+                            {b.village ? `Desa ${b.village}` : ""} {b.regency ? `, ${b.regency}` : ""}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-xs font-mono text-muted-foreground">
+                          {Number(b.latitude).toFixed(4)}, {Number(b.longitude).toFixed(4)}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          <span className="text-muted-foreground">
+                            {b.sar_post_name || "Posko Linmas Pesisir"}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-center text-xs">
+                          {b.total_victims > 0 ? (
+                            <Badge variant="outline" className="bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/25 font-semibold text-[11px]">
+                              {b.incident_count} insiden ({b.total_victims} korban)
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground text-[11px]">Nihil insiden</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right text-xs">
+                          <div className="flex items-center justify-end gap-1">
+                            <Link href={`/events/stings?station_id=${station.id}&location=${encodeURIComponent(b.name)}`}>
+                              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-primary hover:text-primary" title="Filter Insiden">
+                                <ShieldAlert className="size-3.5 mr-1" />
+                                <span className="hidden md:inline">Insiden</span>
+                              </Button>
+                            </Link>
+                            {authenticated && (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                                  onClick={() => handleOpenEditBeach(b)}
+                                  title="Edit Data Pantai"
+                                >
+                                  <Edit className="size-3.5" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-7 p-0 text-destructive/70 hover:text-destructive hover:bg-destructive/10"
+                                  onClick={() => handleOpenDeleteBeach(b)}
+                                  title="Hapus Pantai"
+                                >
+                                  <Trash2 className="size-3.5" />
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {/* Tab: Water Quality */}
@@ -889,6 +1304,354 @@ export default function StationDetailPage({
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Tambah Pantai */}
+      <Dialog open={isAddBeachOpen} onOpenChange={setIsAddBeachOpen}>
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MapPin className="h-5 w-5 text-primary" />
+              Tambah Pantai Baru
+            </DialogTitle>
+            <DialogDescription>
+              Daftarkan pantai baru di bawah wilayah kerja pemantauan stasiun {station.name}.
+            </DialogDescription>
+          </DialogHeader>
+
+          {beachFormError && (
+            <div className="p-3 text-xs rounded-md bg-destructive/10 text-destructive border border-destructive/20 flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span>{beachFormError}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleAddBeachSubmit} className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="add-beach-name">Nama Pantai *</Label>
+              <Input
+                id="add-beach-name"
+                placeholder="Contoh: Pantai Drini"
+                value={beachFormData.name}
+                onChange={(e) => setBeachFormData({ ...beachFormData, name: e.target.value })}
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="add-beach-village">Desa / Kelurahan</Label>
+                <Input
+                  id="add-beach-village"
+                  placeholder="Contoh: Banjarejo"
+                  value={beachFormData.village}
+                  onChange={(e) => setBeachFormData({ ...beachFormData, village: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="add-beach-subdistrict">Kecamatan / Kapanewon</Label>
+                <Input
+                  id="add-beach-subdistrict"
+                  placeholder="Contoh: Tanjungsari"
+                  value={beachFormData.subdistrict}
+                  onChange={(e) => setBeachFormData({ ...beachFormData, subdistrict: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="add-beach-regency">Kabupaten / Kota</Label>
+                <Input
+                  id="add-beach-regency"
+                  placeholder="Contoh: Gunungkidul"
+                  value={beachFormData.regency}
+                  onChange={(e) => setBeachFormData({ ...beachFormData, regency: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="add-beach-lat">Latitude GPS *</Label>
+                <Input
+                  id="add-beach-lat"
+                  type="number"
+                  step="any"
+                  placeholder="-8.134"
+                  value={beachFormData.latitude}
+                  onChange={(e) => setBeachFormData({ ...beachFormData, latitude: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="add-beach-lng">Longitude GPS *</Label>
+                <Input
+                  id="add-beach-lng"
+                  type="number"
+                  step="any"
+                  placeholder="110.55"
+                  value={beachFormData.longitude}
+                  onChange={(e) => setBeachFormData({ ...beachFormData, longitude: e.target.value })}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label htmlFor="add-beach-sar">Posko Pengamanan SAR</Label>
+                <Input
+                  id="add-beach-sar"
+                  placeholder="Contoh: Posko SAR Linmas Wilayah II Baron"
+                  value={beachFormData.sar_post_name}
+                  onChange={(e) => setBeachFormData({ ...beachFormData, sar_post_name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="add-beach-status">Status Operasional</Label>
+                <Select
+                  value={beachFormData.status}
+                  onValueChange={(val) =>
+                    setBeachFormData({
+                      ...beachFormData,
+                      status: (val as "aktif" | "nonaktif") || "aktif",
+                    })
+                  }
+                >
+                  <SelectTrigger id="add-beach-status">
+                    <SelectValue placeholder="Pilih status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="aktif">Aktif</SelectItem>
+                    <SelectItem value="nonaktif">Nonaktif</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="add-beach-desc">Deskripsi & Karakteristik Wilayah</Label>
+              <textarea
+                id="add-beach-desc"
+                rows={3}
+                placeholder="Catatan topografi pesisir, palung laut, karang, fasilitas wisata..."
+                value={beachFormData.description}
+                onChange={(e) => setBeachFormData({ ...beachFormData, description: e.target.value })}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              />
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsAddBeachOpen(false)}
+                disabled={beachSubmitting}
+              >
+                Batal
+              </Button>
+              <Button type="submit" disabled={beachSubmitting}>
+                {beachSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Simpan Pantai
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Edit Pantai */}
+      <Dialog open={isEditBeachOpen} onOpenChange={setIsEditBeachOpen}>
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit className="h-5 w-5 text-primary" />
+              Edit Data Pantai
+            </DialogTitle>
+            <DialogDescription>
+              Perbarui informasi pantai di bawah wilayah kerja stasiun {station.name}.
+            </DialogDescription>
+          </DialogHeader>
+
+          {beachFormError && (
+            <div className="p-3 text-xs rounded-md bg-destructive/10 text-destructive border border-destructive/20 flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span>{beachFormError}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleEditBeachSubmit} className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-beach-name">Nama Pantai *</Label>
+              <Input
+                id="edit-beach-name"
+                placeholder="Contoh: Pantai Drini"
+                value={beachFormData.name}
+                onChange={(e) => setBeachFormData({ ...beachFormData, name: e.target.value })}
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-beach-village">Desa / Kelurahan</Label>
+                <Input
+                  id="edit-beach-village"
+                  placeholder="Contoh: Banjarejo"
+                  value={beachFormData.village}
+                  onChange={(e) => setBeachFormData({ ...beachFormData, village: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-beach-subdistrict">Kecamatan / Kapanewon</Label>
+                <Input
+                  id="edit-beach-subdistrict"
+                  placeholder="Contoh: Tanjungsari"
+                  value={beachFormData.subdistrict}
+                  onChange={(e) => setBeachFormData({ ...beachFormData, subdistrict: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-beach-regency">Kabupaten / Kota</Label>
+                <Input
+                  id="edit-beach-regency"
+                  placeholder="Contoh: Gunungkidul"
+                  value={beachFormData.regency}
+                  onChange={(e) => setBeachFormData({ ...beachFormData, regency: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-beach-lat">Latitude GPS *</Label>
+                <Input
+                  id="edit-beach-lat"
+                  type="number"
+                  step="any"
+                  placeholder="-8.134"
+                  value={beachFormData.latitude}
+                  onChange={(e) => setBeachFormData({ ...beachFormData, latitude: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-beach-lng">Longitude GPS *</Label>
+                <Input
+                  id="edit-beach-lng"
+                  type="number"
+                  step="any"
+                  placeholder="110.55"
+                  value={beachFormData.longitude}
+                  onChange={(e) => setBeachFormData({ ...beachFormData, longitude: e.target.value })}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label htmlFor="edit-beach-sar">Posko Pengamanan SAR</Label>
+                <Input
+                  id="edit-beach-sar"
+                  placeholder="Contoh: Posko SAR Linmas Wilayah II Baron"
+                  value={beachFormData.sar_post_name}
+                  onChange={(e) => setBeachFormData({ ...beachFormData, sar_post_name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-beach-status">Status Operasional</Label>
+                <Select
+                  value={beachFormData.status}
+                  onValueChange={(val) =>
+                    setBeachFormData({
+                      ...beachFormData,
+                      status: (val as "aktif" | "nonaktif") || "aktif",
+                    })
+                  }
+                >
+                  <SelectTrigger id="edit-beach-status">
+                    <SelectValue placeholder="Pilih status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="aktif">Aktif</SelectItem>
+                    <SelectItem value="nonaktif">Nonaktif</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-beach-desc">Deskripsi & Karakteristik Wilayah</Label>
+              <textarea
+                id="edit-beach-desc"
+                rows={3}
+                placeholder="Catatan topografi pesisir, palung laut, karang, fasilitas wisata..."
+                value={beachFormData.description}
+                onChange={(e) => setBeachFormData({ ...beachFormData, description: e.target.value })}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              />
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsEditBeachOpen(false)}
+                disabled={beachSubmitting}
+              >
+                Batal
+              </Button>
+              <Button type="submit" disabled={beachSubmitting}>
+                {beachSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Simpan Perubahan
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Konfirmasi Hapus Pantai */}
+      <Dialog open={isDeleteBeachOpen} onOpenChange={setIsDeleteBeachOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Hapus Data Pantai
+            </DialogTitle>
+            <DialogDescription>
+              Apakah Anda yakin ingin menghapus pantai{" "}
+              <strong className="text-foreground font-semibold">{selectedBeach?.name}</strong>?
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="text-xs text-muted-foreground bg-muted/60 p-3 rounded-md border border-border/50 space-y-1.5">
+            <p>
+              Tindakan ini tidak dapat dibatalkan. Jika terdapat data insiden korban sengatan yang terhubung ke pantai ini, relasinya akan dilepas secara aman (data insiden tetap tersimpan).
+            </p>
+            {selectedBeach && selectedBeach.total_victims > 0 && (
+              <p className="text-destructive font-medium">
+                Peringatan: Pantai ini memiliki catatan {selectedBeach.incident_count} insiden ({selectedBeach.total_victims} korban).
+              </p>
+            )}
+          </div>
+
+          <DialogFooter className="pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsDeleteBeachOpen(false)}
+              disabled={beachSubmitting}
+            >
+              Batal
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteBeach}
+              disabled={beachSubmitting}
+            >
+              {beachSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Hapus Pantai
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

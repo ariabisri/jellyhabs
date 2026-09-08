@@ -109,6 +109,31 @@ FOR EACH ROW
 EXECUTE FUNCTION update_updated_at_column();
 
 -- -----------------------------------------------------------------------------
+-- 3B. BEACHES (PANTAI BINAAN STASIUN PEMANTAUAN)
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS beaches (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    station_id UUID NOT NULL REFERENCES monitoring_stations(id) ON DELETE CASCADE,
+    name VARCHAR(150) NOT NULL,
+    village VARCHAR(100),
+    subdistrict VARCHAR(100),
+    regency VARCHAR(100) DEFAULT 'Gunungkidul',
+    latitude DECIMAL(10, 7) NOT NULL,
+    longitude DECIMAL(10, 7) NOT NULL,
+    sar_post_name VARCHAR(150),
+    description TEXT,
+    status VARCHAR(20) NOT NULL DEFAULT 'aktif' CHECK (status IN ('aktif', 'nonaktif')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_beach_station_name UNIQUE(station_id, name)
+);
+
+CREATE TRIGGER trg_beaches_updated_at
+BEFORE UPDATE ON beaches
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column();
+
+-- -----------------------------------------------------------------------------
 -- 4. SAMPLING EVENTS
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS sampling_events (
@@ -311,6 +336,35 @@ CREATE TABLE IF NOT EXISTS datasets (
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- -----------------------------------------------------------------------------
+-- 14. STING RECORDS (Korban Sengatan Ubur-Ubur)
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS sting_records (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    incident_date DATE NOT NULL,
+    incident_time TIME,
+    location_name VARCHAR(255) NOT NULL,
+    latitude DECIMAL(10, 7),
+    longitude DECIMAL(10, 7),
+    station_id UUID REFERENCES monitoring_stations(id) ON DELETE SET NULL,
+    beach_id UUID REFERENCES beaches(id) ON DELETE SET NULL,
+    bloom_event_id UUID REFERENCES bloom_events(id) ON DELETE SET NULL,
+    victim_count INTEGER NOT NULL DEFAULT 1 CHECK (victim_count >= 1),
+    victim_name VARCHAR(255),
+    victim_age VARCHAR(50),
+    victim_gender VARCHAR(20) CHECK (victim_gender IN ('Laki-laki', 'Perempuan')),
+    severity_level VARCHAR(50),
+    treatment_notes TEXT,
+    reported_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TRIGGER trg_sting_records_updated_at
+BEFORE UPDATE ON sting_records
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column();
+
 -- =============================================================================
 -- INDEXES FOR PERFORMANCE & SPATIAL QUERIES
 -- =============================================================================
@@ -336,11 +390,14 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_species_code ON species_master (species_co
 CREATE INDEX IF NOT EXISTS idx_sampling_date ON sampling_events (sampling_date DESC);
 CREATE INDEX IF NOT EXISTS idx_bloom_event_start_date ON bloom_events (event_start_date DESC);
 CREATE INDEX IF NOT EXISTS idx_bloom_event_end_date ON bloom_events (event_end_date DESC);
+CREATE INDEX IF NOT EXISTS idx_sting_incident_date ON sting_records (incident_date DESC);
 
 -- Alert & Category Filter Indexes
 CREATE INDEX IF NOT EXISTS idx_bloom_alert_status ON bloom_events (alert_status);
 CREATE INDEX IF NOT EXISTS idx_species_scientific ON species_master (scientific_name);
 CREATE INDEX IF NOT EXISTS idx_species_category ON species_master (organism_category);
+CREATE INDEX IF NOT EXISTS idx_sting_location ON sting_records (location_name);
+CREATE INDEX IF NOT EXISTS idx_sting_gender ON sting_records (victim_gender);
 
 -- Foreign Key Lookup Indexes
 CREATE INDEX IF NOT EXISTS idx_users_role ON users (role_id);
@@ -360,4 +417,12 @@ CREATE INDEX IF NOT EXISTS idx_bloom_wq_record ON bloom_event_water_quality (wat
 CREATE INDEX IF NOT EXISTS idx_datasets_uploader ON datasets (uploaded_by);
 CREATE INDEX IF NOT EXISTS idx_datasets_station ON datasets (station_id);
 CREATE INDEX IF NOT EXISTS idx_datasets_sampling ON datasets (sampling_event_id);
+CREATE INDEX IF NOT EXISTS idx_sting_station ON sting_records (station_id);
+CREATE INDEX IF NOT EXISTS idx_sting_beach ON sting_records (beach_id);
+CREATE INDEX IF NOT EXISTS idx_sting_bloom_event ON sting_records (bloom_event_id);
+CREATE INDEX IF NOT EXISTS idx_sting_reporter ON sting_records (reported_by);
+CREATE INDEX IF NOT EXISTS idx_beaches_station ON beaches (station_id);
+CREATE INDEX IF NOT EXISTS idx_beaches_name ON beaches (name);
+CREATE INDEX IF NOT EXISTS idx_beaches_status ON beaches (status);
+
 
