@@ -53,17 +53,7 @@ function AppHeader() {
               </span>
             </div>
           </div>
-        ) : (
-          <div className="border-l border-border pl-3 ml-1">
-            <a
-              href="/login"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm transition-all"
-            >
-              <LogIn className="size-3.5" />
-              <span>Masuk / Login</span>
-            </a>
-          </div>
-        )}
+        ) : null}
       </div>
     </header>
   )

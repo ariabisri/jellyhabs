@@ -25,7 +25,7 @@ Tujuan Utama
 - **Pengsembunyian Tombol Mutasi (Add/Edit/Delete)**: Seluruh tombol/link aksi mutasi seperti "Tambah Stasiun", "Tambah Sampling", "Catat Kejadian", "Tambah Korban Sengatan", "Import Data", "Unggah Dataset", "Tambah Spesies", "Edit", dan "Hapus" DISEMBUNYIKAN SEPENUHNYA dari tampilan pengunjung publik.
 - **Pengsembunyian Grup Menu "Sistem"**: Grup menu navigation **"Sistem"** (Manajemen Dataset & Manajemen Pengguna) DISEMBUNYIKAN SEPENUHNYA dari sidebar navigasi pengunjung publik.
 - **Proteksi Halaman User Management**: Pengguna publik DILARANG mengakses modul Manajemen Pengguna (`/admin/users`) seluruhnya. Jika mencoba mengakses via URL langsung, sistem otomatis mengalihkan (redirect) ke halaman `/login`.
-- **Status Header/Sidebar**: Jika tidak ada sesi login aktif, header dan sidebar menampilkan tombol/tautan **"Masuk / Login"**.
+- **Status Header/Sidebar (Hidden Login Links)**: Seluruh tombol/link "Masuk / Login" disembunyikan dari antarmuka publik. Tampilan bagi pengunjung murni menyajikan portal publik read-only. Pengguna berwenang (Peneliti/Admin) mengakses halaman login secara langsung melalui URL spesifik (`/login`).
 
 3.2. Peneliti (Researcher) & Administrator (Authenticated Users)
 - **Peneliti**: Dapat melihat seluruh data, melakukan operasi penambahan/pengubahan data monitoring (Tambah/Edit Stasiun, Sampling Event, Kualitas Air, Plankton, HABs Events, Input & Import Korban Sengatan, Unggah Dataset), serta mengakses menu "Sistem" (Manajemen Dataset).
@@ -36,9 +36,9 @@ Tujuan Utama
 Fitur yang wajib tersedia:
 
 Authentication & Access Control
-- Login & Logout
+- Login & Logout (Direct URL `/login`)
 - Session Management (HTTP-only Cookie JWT)
-- Header/Sidebar Session Dynamic Display (Nama user login vs Link Login jika Guest)
+- Header/Sidebar Dynamic Display (Nama user login jika autentik; informasi Portal Publik tanpa link login jika Guest)
 - Selective UI Hiding (Sembunyikan Menu Sistem & Tombol Tambah/Edit/Hapus untuk Guest)
 - Public Read-Only Access (Tanpa login dapat melihat fitur monitoring)
 - Route Guard Proteksi Modul User Management (`/admin/users`)
