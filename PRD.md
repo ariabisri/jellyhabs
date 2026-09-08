@@ -42,6 +42,7 @@ Authentication & Access Control
 - Selective UI Hiding (Sembunyikan Menu Sistem & Tombol Tambah/Edit/Hapus untuk Guest)
 - Public Read-Only Access (Tanpa login dapat melihat fitur monitoring)
 - Route Guard Proteksi Modul User Management (`/admin/users`)
+- Alur Pemulihan Akun & Reset Password: Reset password mandiri tanpa verifikasi dinonaktifkan demi keamanan data riset; digantikan oleh alur resmi "Hubungi Administrator" dan fitur Reset Password terpusat di modul Admin.
 
 Monitoring
 - Stasiun Monitoring
@@ -102,7 +103,7 @@ Fitur:
 - Login
 - Logout
 - Session Management
-- Password Reset
+- Pemulihan Akun & Reset Password (Dialog & Halaman Panduan "Hubungi Administrator")
 - Header & Sidebar Session Display: Menampilkan nama user login jika terautentikasi, atau link "Masuk" jika Guest.
 
 Acceptance Criteria:
@@ -110,13 +111,15 @@ Acceptance Criteria:
 - Session tersimpan aman di HTTP-only cookie.
 - Pengguna Guest tidak dapat melihat tombol Tambah/Edit/Hapus maupun grup menu "Sistem".
 - Header menampilkan nama user asli jika login, atau link "Masuk" jika Guest.
+- Pengguna yang lupa password diarahkan menghubungi Administrator resmi; endpoint publik reset-password ditutup/dinonaktifkan (403 Forbidden).
 
 Modul 2 – Manajemen Pengguna (`/admin/users`)
-Data:
-- Nama
+Data & Fitur:
+- Nama Lengkap
 - Email
 - Role
-- Status
+- Status (Aktif / Nonaktif / Suspended)
+- Aksi: Tambah Pengguna, Edit Pengguna, Hapus Pengguna, dan **Reset Password Pengguna** (dengan generator kata sandi acak dan salin kredensial sementara).
 
 Fitur:
 - Tambah

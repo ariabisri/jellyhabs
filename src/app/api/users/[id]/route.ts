@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import bcrypt from "bcryptjs"
 import { z } from "zod"
 import { query } from "@/lib/db"
+import { getSession } from "@/lib/auth"
 
 const updateUserSchema = z.object({
   full_name: z.string().min(2, "Nama lengkap minimal 2 karakter").optional(),
@@ -73,6 +74,25 @@ export async function PUT(
 ) {
   try {
     const { id } = await params
+
+    const session = await getSession()
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: "Akses tidak diizinkan. Silakan login terlebih dahulu." },
+        { status: 401 }
+      )
+    }
+
+    if (session.role !== "Admin" && session.id !== id) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Hanya Administrator yang berwenang mengubah data akun atau mereset kata sandi pengguna lain.",
+        },
+        { status: 403 }
+      )
+    }
+
     const body = await request.json()
     const result = updateUserSchema.safeParse(body)
 
@@ -190,6 +210,17 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
+
+    const session = await getSession()
+    if (!session || session.role !== "Admin") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Hanya Administrator yang berwenang menghapus pengguna.",
+        },
+        { status: 403 }
+      )
+    }
 
     const existingUser = await query(`SELECT id, full_name FROM users WHERE id = $1 LIMIT 1`, [id])
     if (existingUser.rows.length === 0) {

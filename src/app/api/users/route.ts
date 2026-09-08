@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import bcrypt from "bcryptjs"
 import { z } from "zod"
 import { query } from "@/lib/db"
+import { getSession } from "@/lib/auth"
 
 const createUserSchema = z.object({
   full_name: z.string().min(2, "Nama lengkap minimal 2 karakter"),
@@ -25,6 +26,17 @@ interface UserListRow {
 
 export async function GET(request: Request) {
   try {
+    const session = await getSession()
+    if (!session || session.role !== "Admin") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Akses ditolak. Memerlukan hak akses Administrator.",
+        },
+        { status: 403 }
+      )
+    }
+
     const { searchParams } = new URL(request.url)
     const searchQuery = searchParams.get("q") || ""
     const roleId = searchParams.get("role_id") || ""
@@ -76,6 +88,17 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const session = await getSession()
+    if (!session || session.role !== "Admin") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Hanya Administrator yang berwenang menambahkan pengguna baru.",
+        },
+        { status: 403 }
+      )
+    }
+
     const body = await request.json()
     const result = createUserSchema.safeParse(body)
 
