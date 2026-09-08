@@ -185,3 +185,14 @@ MVP dianggap berhasil apabila:
 - Data korban sengatan dapat diinput manual dan diimpor dari file Excel.
 - Dashboard dan WebGIS menampilkan statistik dan layer spasial hotspot korban sengatan.
 - Sistem berhasil di-deploy pada VPS Ubuntu menggunakan Next.js, PostgreSQL/PostGIS, PM2, dan Nginx.
+
+9. Strategi Percabangan Git (Core Branches Strategy)
+Sistem menggunakan model 2 branch inti terstandarisasi:
+- **`main` (Production)**:
+  - Lingkungan produksi rilis resmi yang stabil.
+  - Hanya menerima penggabungan via Pull Request dari branch `develop` (atau `hotfix/*`).
+  - Diberikan git tag versi rilis resmi (misal `v1.0.0`).
+- **`develop` (Development)**:
+  - Default branch utama harian di GitHub.
+  - Tempat integrasi seluruh fitur baru dan perbaikan sprint.
+  - Setiap cabang fitur (`feature/*`) dan perbaikan (`fix/*`) dibuat dari dan di-merge kembali ke `develop`.
