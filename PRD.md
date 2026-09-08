@@ -25,7 +25,7 @@ Tujuan Utama
 - **Pengsembunyian Tombol Mutasi (Add/Edit/Delete)**: Seluruh tombol/link aksi mutasi seperti "Tambah Stasiun", "Tambah Sampling", "Catat Kejadian", "Tambah Korban Sengatan", "Import Data", "Unggah Dataset", "Tambah Spesies", "Edit", dan "Hapus" DISEMBUNYIKAN SEPENUHNYA dari tampilan pengunjung publik.
 - **Pengsembunyian Grup Menu "Sistem"**: Grup menu navigation **"Sistem"** (Manajemen Dataset & Manajemen Pengguna) DISEMBUNYIKAN SEPENUHNYA dari sidebar navigasi pengunjung publik.
 - **Proteksi Halaman User Management**: Pengguna publik DILARANG mengakses modul Manajemen Pengguna (`/admin/users`) seluruhnya. Jika mencoba mengakses via URL langsung, sistem otomatis mengalihkan (redirect) ke halaman `/login`.
-- **Status Header/Sidebar**: Jika tidak ada sesi login aktif, header dan sidebar menampilkan tombol/tautan **"Masuk / Login"**.
+- **Status Header/Sidebar (Hidden Login Links)**: Seluruh tombol/link "Masuk / Login" disembunyikan dari antarmuka publik. Tampilan bagi pengunjung murni menyajikan portal publik read-only. Pengguna berwenang (Peneliti/Admin) mengakses halaman login secara langsung melalui URL spesifik (`/login`).
 
 3.2. Peneliti (Researcher) & Administrator (Authenticated Users)
 - **Peneliti**: Dapat melihat seluruh data, melakukan operasi penambahan/pengubahan data monitoring (Tambah/Edit Stasiun, Sampling Event, Kualitas Air, Plankton, HABs Events, Input & Import Korban Sengatan, Unggah Dataset), serta mengakses menu "Sistem" (Manajemen Dataset).
@@ -36,12 +36,13 @@ Tujuan Utama
 Fitur yang wajib tersedia:
 
 Authentication & Access Control
-- Login & Logout
+- Login & Logout (Direct URL `/login`)
 - Session Management (HTTP-only Cookie JWT)
-- Header/Sidebar Session Dynamic Display (Nama user login vs Link Login jika Guest)
+- Header/Sidebar Dynamic Display (Nama user login jika autentik; informasi Portal Publik tanpa link login jika Guest)
 - Selective UI Hiding (Sembunyikan Menu Sistem & Tombol Tambah/Edit/Hapus untuk Guest)
 - Public Read-Only Access (Tanpa login dapat melihat fitur monitoring)
 - Route Guard Proteksi Modul User Management (`/admin/users`)
+- Alur Pemulihan Akun & Reset Password: Reset password mandiri tanpa verifikasi dinonaktifkan demi keamanan data riset; digantikan oleh alur resmi "Hubungi Administrator" dan fitur Reset Password terpusat di modul Admin.
 
 Monitoring
 - Stasiun Monitoring
@@ -100,9 +101,27 @@ Authentication & Session
 6. Modul Sistem
 Modul 1 – Authentication & Session Header
 Fitur:
-- Login, Logout, Session Management, Dynamic Header & Sidebar
+- Login
+- Logout
+- Session Management
+- Pemulihan Akun & Reset Password (Dialog & Halaman Panduan "Hubungi Administrator")
+- Header & Sidebar Session Display: Menampilkan nama user login jika terautentikasi, atau link "Masuk" jika Guest.
+
+Acceptance Criteria:
+- Pengguna berhasil login.
+- Session tersimpan aman di HTTP-only cookie.
+- Pengguna Guest tidak dapat melihat tombol Tambah/Edit/Hapus maupun grup menu "Sistem".
+- Header menampilkan nama user asli jika login, atau link "Masuk" jika Guest.
+- Pengguna yang lupa password diarahkan menghubungi Administrator resmi; endpoint publik reset-password ditutup/dinonaktifkan (403 Forbidden).
 
 Modul 2 – Manajemen Pengguna (`/admin/users`)
+Data & Fitur:
+- Nama Lengkap
+- Email
+- Role
+- Status (Aktif / Nonaktif / Suspended)
+- Aksi: Tambah Pengguna, Edit Pengguna, Hapus Pengguna, dan **Reset Password Pengguna** (dengan generator kata sandi acak dan salin kredensial sementara).
+
 Fitur:
 - CRUD User & Role Guard Admin
 

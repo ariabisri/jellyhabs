@@ -29,7 +29,25 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Search, Loader2, Edit, Trash2, Shield, User, AlertCircle, RefreshCw, Lock } from "lucide-react"
+import {
+  Plus,
+  Search,
+  Loader2,
+  Edit,
+  Trash2,
+  Shield,
+  User,
+  AlertCircle,
+  RefreshCw,
+  Lock,
+  KeyRound,
+  Copy,
+  Check,
+  Eye,
+  EyeOff,
+  Sparkles,
+  CheckCircle2,
+} from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 
 interface RoleItem {
@@ -76,6 +94,16 @@ export default function UsersPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false)
   const [deletingUser, setDeletingUser] = React.useState<UserItem | null>(null)
   const [deleting, setDeleting] = React.useState(false)
+
+  // Reset Password State
+  const [resetDialogOpen, setResetDialogOpen] = React.useState(false)
+  const [resettingUser, setResettingUser] = React.useState<UserItem | null>(null)
+  const [resetPassword, setResetPassword] = React.useState("")
+  const [showResetPassword, setShowResetPassword] = React.useState(false)
+  const [resetLoading, setResetLoading] = React.useState(false)
+  const [resetSuccess, setResetSuccess] = React.useState(false)
+  const [resetError, setResetError] = React.useState<string | null>(null)
+  const [copiedResetCredentials, setCopiedResetCredentials] = React.useState(false)
 
   // Route Guard: Protect User Management from unauthenticated & non-admin users
   React.useEffect(() => {
@@ -268,6 +296,77 @@ export default function UsersPage() {
     }
   }
 
+  // Generate secure temporary password
+  const handleGeneratePassword = () => {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%&*"
+    let generated = "Jelly#"
+    for (let i = 0; i < 6; i++) {
+      generated += chars.charAt(Math.floor(Math.random() * chars.length))
+    }
+    setResetPassword(generated)
+  }
+
+  // Open Reset Password Dialog
+  const handleOpenResetPassword = (user: UserItem) => {
+    setResettingUser(user)
+    setShowResetPassword(false)
+    setResetSuccess(false)
+    setResetError(null)
+    setCopiedResetCredentials(false)
+    // Pre-generate a strong suggestion
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%&*"
+    let generated = "Jelly#"
+    for (let i = 0; i < 6; i++) {
+      generated += chars.charAt(Math.floor(Math.random() * chars.length))
+    }
+    setResetPassword(generated)
+    setResetDialogOpen(true)
+  }
+
+  // Submit Reset Password
+  const handleConfirmResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!resettingUser) return
+    if (!resetPassword || resetPassword.length < 6) {
+      setResetError("Kata sandi baru minimal 6 karakter.")
+      return
+    }
+
+    setResetLoading(true)
+    setResetError(null)
+
+    try {
+      const res = await fetch(`/api/users/${resettingUser.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: resetPassword }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok || !data.success) {
+        setResetError(data.error || "Gagal mengatur ulang kata sandi pengguna.")
+        setResetLoading(false)
+        return
+      }
+
+      setResetSuccess(true)
+      setResetLoading(false)
+    } catch (err) {
+      console.error("Reset password error:", err)
+      setResetError("Terjadi kesalahan sistem saat mengatur ulang kata sandi.")
+      setResetLoading(false)
+    }
+  }
+
+  // Copy temporary credentials to clipboard
+  const handleCopyResetCredentials = () => {
+    if (!resettingUser) return
+    const text = `Kredensial Akun JellyWatch Pro BRIN:\nNama: ${resettingUser.full_name}\nEmail: ${resettingUser.email}\nPassword Sementara: ${resetPassword}\n\nSilakan login di sistem dan segera ganti kata sandi ini demi keamanan.`
+    navigator.clipboard.writeText(text)
+    setCopiedResetCredentials(true)
+    setTimeout(() => setCopiedResetCredentials(false), 2500)
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -368,6 +467,16 @@ export default function UsersPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleOpenResetPassword(u)}
+                        className="hover:bg-amber-500/10 hover:text-amber-500 transition-colors text-muted-foreground"
+                        title="Reset Password Pengguna"
+                      >
+                        <KeyRound className="h-4 w-4" />
+                        <span className="sr-only">Reset Password</span>
+                      </Button>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -534,6 +643,170 @@ export default function UsersPage() {
               )}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Reset Password Pengguna */}
+      <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+        <DialogContent className="sm:max-w-[440px]">
+          <DialogHeader>
+            <div className="flex items-center gap-2 text-amber-500 mb-1">
+              <KeyRound className="size-5" />
+              <DialogTitle className="text-lg">Reset Kata Sandi Pengguna</DialogTitle>
+            </div>
+            <DialogDescription className="text-xs">
+              Setel kata sandi baru atau sementara untuk akun pengguna yang memerlukan bantuan pemulihan.
+            </DialogDescription>
+          </DialogHeader>
+
+          {resettingUser && (
+            <div className="space-y-4 py-2 text-xs">
+              {/* Target User Info Summary */}
+              <div className="flex items-center justify-between p-3 rounded-lg bg-muted/40 border border-border/60">
+                <div className="flex items-center gap-2.5 overflow-hidden">
+                  <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary font-semibold text-xs shrink-0">
+                    {resettingUser.full_name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="overflow-hidden">
+                    <p className="font-semibold text-foreground truncate">{resettingUser.full_name}</p>
+                    <p className="text-[11px] text-muted-foreground font-mono truncate">{resettingUser.email}</p>
+                  </div>
+                </div>
+                <Badge variant="outline" className="text-[10px] shrink-0">
+                  {resettingUser.role_name}
+                </Badge>
+              </div>
+
+              {resetError && (
+                <div className="flex items-center gap-2 rounded-lg bg-destructive/10 p-3 text-xs text-destructive font-medium border border-destructive/20">
+                  <AlertCircle className="size-4 shrink-0" />
+                  <span>{resetError}</span>
+                </div>
+              )}
+
+              {resetSuccess ? (
+                <div className="space-y-4">
+                  <div className="flex items-start gap-2.5 rounded-lg bg-emerald-500/10 p-3 text-xs text-emerald-500 font-medium border border-emerald-500/20">
+                    <CheckCircle2 className="size-4 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <p className="font-semibold">Kata sandi berhasil diperbarui!</p>
+                      <p className="text-muted-foreground">
+                        Salin kredensial di bawah untuk dibagikan secara aman kepada pengguna terkait.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg bg-background p-3 border border-border/80 space-y-2">
+                    <div className="flex justify-between items-center text-[11px]">
+                      <span className="text-muted-foreground">Email:</span>
+                      <span className="font-mono font-medium text-foreground">{resettingUser.email}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-[11px]">
+                      <span className="text-muted-foreground">Password Baru:</span>
+                      <span className="font-mono font-bold text-primary">{resetPassword}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleCopyResetCredentials}
+                      className="w-full text-xs font-medium gap-1.5"
+                    >
+                      {copiedResetCredentials ? (
+                        <>
+                          <Check className="size-3.5 text-emerald-500" />
+                          <span className="text-emerald-500">Kredensial Tersalin!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="size-3.5" />
+                          <span>Salin Info Kredensial Lengkap</span>
+                        </>
+                      )}
+                    </Button>
+                  </div>
+
+                  <DialogFooter className="mt-4">
+                    <Button
+                      type="button"
+                      className="w-full sm:w-auto font-semibold"
+                      onClick={() => setResetDialogOpen(false)}
+                    >
+                      Selesai
+                    </Button>
+                  </DialogFooter>
+                </div>
+              ) : (
+                <form onSubmit={handleConfirmResetPassword} className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="reset_password_field" className="text-xs">
+                        Kata Sandi Baru
+                      </Label>
+                      <button
+                        type="button"
+                        onClick={handleGeneratePassword}
+                        className="text-[11px] text-primary hover:text-primary/80 transition-colors flex items-center gap-1 font-medium"
+                      >
+                        <Sparkles className="size-3" />
+                        Buat Acak
+                      </button>
+                    </div>
+
+                    <div className="relative">
+                      <Input
+                        id="reset_password_field"
+                        type={showResetPassword ? "text" : "password"}
+                        value={resetPassword}
+                        onChange={(e) => setResetPassword(e.target.value)}
+                        placeholder="Minimal 6 karakter"
+                        required
+                        disabled={resetLoading}
+                        className="pr-10 font-mono text-xs"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowResetPassword(!showResetPassword)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
+                        tabIndex={-1}
+                      >
+                        {showResetPassword ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                      </button>
+                    </div>
+
+                    <p className="text-[10px] text-muted-foreground">
+                      Disarankan menggunakan kombinasi huruf besar, huruf kecil, angka, dan simbol.
+                    </p>
+                  </div>
+
+                  <DialogFooter className="gap-2 sm:gap-0 mt-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setResetDialogOpen(false)}
+                      disabled={resetLoading}
+                    >
+                      Batal
+                    </Button>
+                    <Button type="submit" size="sm" className="font-semibold" disabled={resetLoading}>
+                      {resetLoading ? (
+                        <>
+                          <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                          Menyimpan...
+                        </>
+                      ) : (
+                        "Simpan Kata Sandi"
+                      )}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              )}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
