@@ -7,7 +7,7 @@ const createWaterQualitySchema = z.object({
   record_code: z
     .string()
     .min(2, "Kode rekord minimal 2 karakter")
-    .max(20, "Kode rekord maksimal 20 karakter")
+    .max(50, "Kode rekord maksimal 50 karakter")
     .trim(),
   sampling_event_id: z
     .string()
@@ -21,6 +21,15 @@ const createWaterQualitySchema = z.object({
   turbidity_ntu: z.number().nullable().optional(),
   current_speed_ms: z.number().nullable().optional(),
   depth_m: z.number().nullable().optional(),
+  tds_gl: z.number().nullable().optional(),
+  ph_mv: z.number().nullable().optional(),
+  orp_mv: z.number().nullable().optional(),
+  conductivity_ms_cm: z.number().nullable().optional(),
+  sigma_t: z.number().nullable().optional(),
+  nitrate_no3_mgl: z.number().nullable().optional(),
+  nitrite_no2_mgl: z.number().nullable().optional(),
+  phosphorus_p_mgl: z.number().nullable().optional(),
+  phosphate_po4_mgl: z.number().nullable().optional(),
   notes: z.string().optional().default(""),
 })
 
@@ -59,6 +68,15 @@ export async function GET(request: Request) {
         wq.turbidity_ntu,
         wq.current_speed_ms,
         wq.depth_m,
+        wq.tds_gl,
+        wq.ph_mv,
+        wq.orp_mv,
+        wq.conductivity_ms_cm,
+        wq.sigma_t,
+        wq.nitrate_no3_mgl,
+        wq.nitrite_no2_mgl,
+        wq.phosphorus_p_mgl,
+        wq.phosphate_po4_mgl,
         wq.notes,
         wq.created_at,
         wq.updated_at,
@@ -174,6 +192,15 @@ export async function POST(request: Request) {
       turbidity_ntu,
       current_speed_ms,
       depth_m,
+      tds_gl,
+      ph_mv,
+      orp_mv,
+      conductivity_ms_cm,
+      sigma_t,
+      nitrate_no3_mgl,
+      nitrite_no2_mgl,
+      phosphorus_p_mgl,
+      phosphate_po4_mgl,
       notes,
     } = result.data
 
@@ -223,13 +250,25 @@ export async function POST(request: Request) {
         turbidity_ntu,
         current_speed_ms,
         depth_m,
+        tds_gl,
+        ph_mv,
+        orp_mv,
+        conductivity_ms_cm,
+        sigma_t,
+        nitrate_no3_mgl,
+        nitrite_no2_mgl,
+        phosphorus_p_mgl,
+        phosphate_po4_mgl,
         notes
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
       RETURNING 
         id, record_code, sampling_event_id, 
         temperature_c, salinity_psu, dissolved_oxygen_mgl, ph, chlorophyll_a_ugl,
-        turbidity_ntu, current_speed_ms, depth_m, notes, created_at, updated_at
+        turbidity_ntu, current_speed_ms, depth_m,
+        tds_gl, ph_mv, orp_mv, conductivity_ms_cm, sigma_t,
+        nitrate_no3_mgl, nitrite_no2_mgl, phosphorus_p_mgl, phosphate_po4_mgl,
+        notes, created_at, updated_at
     `
     const insertRes = await query(insertSql, [
       record_code,
@@ -242,6 +281,15 @@ export async function POST(request: Request) {
       turbidity_ntu ?? null,
       current_speed_ms ?? null,
       depth_m ?? null,
+      tds_gl ?? null,
+      ph_mv ?? null,
+      orp_mv ?? null,
+      conductivity_ms_cm ?? null,
+      sigma_t ?? null,
+      nitrate_no3_mgl ?? null,
+      nitrite_no2_mgl ?? null,
+      phosphorus_p_mgl ?? null,
+      phosphate_po4_mgl ?? null,
       notes?.trim() || null,
     ])
 

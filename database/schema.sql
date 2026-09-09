@@ -138,7 +138,7 @@ EXECUTE FUNCTION update_updated_at_column();
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS sampling_events (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    sampling_code VARCHAR(20) NOT NULL UNIQUE,
+    sampling_code VARCHAR(50) NOT NULL UNIQUE,
     station_id UUID NOT NULL REFERENCES monitoring_stations(id) ON DELETE CASCADE,
     sampling_date DATE NOT NULL,
     sampling_time TIME,
@@ -199,7 +199,7 @@ EXECUTE FUNCTION update_updated_at_column();
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS water_quality_records (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    record_code VARCHAR(20) NOT NULL UNIQUE,
+    record_code VARCHAR(50) NOT NULL UNIQUE,
     sampling_event_id UUID NOT NULL REFERENCES sampling_events(id) ON DELETE CASCADE,
     temperature_c DECIMAL(5, 2),
     salinity_psu DECIMAL(5, 2),
@@ -209,6 +209,15 @@ CREATE TABLE IF NOT EXISTS water_quality_records (
     turbidity_ntu DECIMAL(7, 2),
     current_speed_ms DECIMAL(5, 2),
     depth_m DECIMAL(6, 2),
+    tds_gl DECIMAL(8, 2),
+    ph_mv DECIMAL(8, 2),
+    orp_mv DECIMAL(8, 2),
+    conductivity_ms_cm DECIMAL(8, 2),
+    sigma_t DECIMAL(8, 2),
+    nitrate_no3_mgl DECIMAL(8, 2),
+    nitrite_no2_mgl DECIMAL(8, 2),
+    phosphorus_p_mgl DECIMAL(8, 2),
+    phosphate_po4_mgl DECIMAL(8, 2),
     notes TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP

@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server"
 import { pool, query } from "@/lib/db"
 import { getSession } from "@/lib/auth"
+import * as XLSX from "xlsx"
 
-interface CsvRowParsed {
+interface WaterQualityRecordToSave {
   record_code: string
-  sampling_code: string
+  sampling_event_id: string
   temperature_c?: number | null
   salinity_psu?: number | null
   dissolved_oxygen_mgl?: number | null
@@ -13,40 +14,58 @@ interface CsvRowParsed {
   turbidity_ntu?: number | null
   current_speed_ms?: number | null
   depth_m?: number | null
+  tds_gl?: number | null
+  ph_mv?: number | null
+  orp_mv?: number | null
+  conductivity_ms_cm?: number | null
+  sigma_t?: number | null
+  nitrate_no3_mgl?: number | null
+  nitrite_no2_mgl?: number | null
+  phosphorus_p_mgl?: number | null
+  phosphate_po4_mgl?: number | null
   notes?: string | null
   row_index: number
 }
 
-function parseCsvLine(text: string, delimiter: string = ","): string[] {
-  const result: string[] = []
-  let cur = ""
-  let inQuotes = false
-
-  for (let i = 0; i < text.length; i++) {
-    const char = text[i]
-    const nextChar = text[i + 1]
-
-    if (char === '"' || char === "'") {
-      if (inQuotes && nextChar === char) {
-        cur += char
-        i++ // skip escaped quote
-      } else {
-        inQuotes = !inQuotes
-      }
-    } else if (char === delimiter && !inQuotes) {
-      result.push(cur.trim())
-      cur = ""
-    } else {
-      cur += char
-    }
+function parseExcelTime(val: unknown): string | null {
+  if (val === null || val === undefined || val === "") return null
+  if (typeof val === "number") {
+    const totalMinutes = Math.round(val * 24 * 60)
+    const hours = Math.floor(totalMinutes / 60) % 24
+    const mins = totalMinutes % 60
+    return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`
   }
-  result.push(cur.trim())
-  return result
+  const str = String(val).trim().replace(".", ":")
+  if (str.includes(":")) {
+    const parts = str.split(":")
+    return `${parts[0].padStart(2, "0")}:${(parts[1] || "00").padEnd(2, "0").slice(0, 2)}`
+  }
+  return str.slice(0, 5)
 }
 
-function parseNumeric(val: string | undefined): number | null {
-  if (!val) return null
-  const cleaned = val.replace(",", ".").trim()
+function parseExcelDate(val: unknown): string | null {
+  if (val === null || val === undefined || val === "") return null
+  if (typeof val === "number") {
+    const date = new Date(Math.round((val - 25569) * 86400 * 1000))
+    return date.toISOString().split("T")[0]
+  }
+  const str = String(val).trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str
+  if (str.includes("/")) {
+    const parts = str.split("/")
+    if (parts.length === 3) {
+      if (parts[2].length === 4) {
+        return `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`
+      }
+    }
+  }
+  return str
+}
+
+function parseNumeric(val: unknown): number | null {
+  if (val === null || val === undefined) return null
+  if (typeof val === "number") return isNaN(val) ? null : val
+  const cleaned = String(val).replace(",", ".").trim()
   if (cleaned === "" || cleaned === "-" || cleaned.toLowerCase() === "null" || cleaned.toLowerCase() === "nan") {
     return null
   }
@@ -56,61 +75,6 @@ function parseNumeric(val: string | undefined): number | null {
 
 function normalizeHeader(h: string): string {
   return h.toLowerCase().replace(/[^a-z0-9_]/g, "_").replace(/^_+|_+$/g, "")
-}
-
-function mapHeaders(headers: string[]): Record<string, number> {
-  const map: Record<string, number> = {}
-
-  headers.forEach((h, idx) => {
-    const norm = normalizeHeader(h)
-    
-    // record_code
-    if (["record_code", "kode_rekord", "record_id", "id_wq", "id", "kode_wq", "kode"].includes(norm)) {
-      if (!("record_code" in map)) map.record_code = idx
-    }
-    // sampling_code
-    else if (["sampling_code", "kode_sampling", "sampling_id", "id_sampling", "sampling", "kode_sampel"].includes(norm)) {
-      if (!("sampling_code" in map)) map.sampling_code = idx
-    }
-    // temperature_c
-    else if (["temperature_c", "temperature", "suhu", "temp", "suhu_c", "temp_c", "suhu_air"].includes(norm)) {
-      if (!("temperature_c" in map)) map.temperature_c = idx
-    }
-    // salinity_psu
-    else if (["salinity_psu", "salinity", "salinitas", "salinitas_psu", "psu"].includes(norm)) {
-      if (!("salinity_psu" in map)) map.salinity_psu = idx
-    }
-    // dissolved_oxygen_mgl
-    else if (["dissolved_oxygen_mgl", "dissolved_oxygen", "do", "do_val", "do_mgl", "oksigen_terlarut", "do_mg_l"].includes(norm)) {
-      if (!("dissolved_oxygen_mgl" in map)) map.dissolved_oxygen_mgl = idx
-    }
-    // ph
-    else if (["ph", "nilai_ph"].includes(norm)) {
-      if (!("ph" in map)) map.ph = idx
-    }
-    // chlorophyll_a_ugl
-    else if (["chlorophyll_a_ugl", "chlorophyll_a", "chlorophyll", "klorofil_a", "klorofil", "klorofil_ugl", "chl_a", "klorofil_a_ug_l"].includes(norm)) {
-      if (!("chlorophyll_a_ugl" in map)) map.chlorophyll_a_ugl = idx
-    }
-    // turbidity_ntu
-    else if (["turbidity_ntu", "turbidity", "kekeruhan", "kekeruhan_ntu", "ntu"].includes(norm)) {
-      if (!("turbidity_ntu" in map)) map.turbidity_ntu = idx
-    }
-    // current_speed_ms
-    else if (["current_speed_ms", "current_speed", "kecepatan_arus", "arus_ms", "arus", "speed_ms"].includes(norm)) {
-      if (!("current_speed_ms" in map)) map.current_speed_ms = idx
-    }
-    // depth_m
-    else if (["depth_m", "depth", "kedalaman", "kedalaman_m"].includes(norm)) {
-      if (!("depth_m" in map)) map.depth_m = idx
-    }
-    // notes
-    else if (["notes", "catatan", "keterangan", "deskripsi", "note"].includes(norm)) {
-      if (!("notes" in map)) map.notes = idx
-    }
-  })
-
-  return map
 }
 
 export async function POST(request: Request) {
@@ -126,9 +90,11 @@ export async function POST(request: Request) {
       )
     }
 
-    let csvContent = ""
-    let originalFileName = "water_quality_upload.csv"
+    let fileBuffer: Buffer | null = null
+    let originalFileName = "water_quality_upload.xlsx"
     let fileSizeBytes = 0
+    let userStationId: string | null = null
+    let userSamplingId: string | null = null
 
     const contentType = request.headers.get("content-type") || ""
 
@@ -138,118 +104,312 @@ export async function POST(request: Request) {
 
       if (!file) {
         return NextResponse.json(
-          { success: false, error: "File CSV tidak ditemukan dalam permintaan" },
+          { success: false, error: "File spreadsheet (.xlsx, .xls, .csv) tidak ditemukan dalam permintaan" },
           { status: 400 }
         )
       }
 
       originalFileName = file.name
       fileSizeBytes = file.size
-      csvContent = await file.text()
+      const arrayBuffer = await file.arrayBuffer()
+      fileBuffer = Buffer.from(arrayBuffer)
+      userStationId = (formData.get("station_id") as string | null) || null
+      userSamplingId = (formData.get("sampling_event_id") as string | null) || null
     } else {
       const body = await request.json()
-      csvContent = body.csvText || ""
+      const csvText = body.csvText || ""
       if (body.fileName) originalFileName = body.fileName
-      fileSizeBytes = Buffer.byteLength(csvContent, "utf8")
+      userStationId = body.station_id || null
+      userSamplingId = body.sampling_event_id || null
+      fileBuffer = Buffer.from(csvText, "utf-8")
+      fileSizeBytes = fileBuffer.length
     }
 
-    if (!csvContent.trim()) {
+    if (!fileBuffer || fileBuffer.length === 0) {
       return NextResponse.json(
-        { success: false, error: "Isi berkas CSV kosong" },
+        { success: false, error: "Berkas yang diunggah kosong" },
         { status: 400 }
       )
     }
 
-    // Split lines
-    const lines = csvContent
-      .replace(/\r\n/g, "\n")
-      .replace(/\r/g, "\n")
-      .split("\n")
-      .filter((l) => l.trim().length > 0)
-
-    if (lines.length < 2) {
+    // Read workbook with SheetJS
+    let workbook: XLSX.WorkBook
+    try {
+      workbook = XLSX.read(fileBuffer, { type: "buffer" })
+    } catch {
       return NextResponse.json(
-        {
-          success: false,
-          error: "Berkas CSV harus memiliki baris header dan minimal satu baris data",
-        },
+        { success: false, error: "Format berkas tidak valid atau berkas rusak. Gunakan file .xlsx, .xls, atau .csv" },
         { status: 400 }
       )
     }
 
-    // Detect delimiter
-    const firstLine = lines[0]
-    const delimiter = firstLine.includes(";") && !firstLine.includes(",") ? ";" : ","
-    const headers = parseCsvLine(firstLine, delimiter)
-    const headerMap = mapHeaders(headers)
+    // Stations & sampling events lookup
+    const stationsRes = await query<{ id: string; station_code: string; name: string }>(
+      `SELECT id, station_code, name FROM monitoring_stations`
+    )
+    const stationsList = stationsRes.rows
+    const defaultStation = stationsList.find((s) => s.station_code === "ST-03") || stationsList[0]
+    let targetStation = userStationId && userStationId !== "all"
+      ? stationsList.find((s) => s.id === userStationId || s.station_code === userStationId) || defaultStation
+      : defaultStation
 
-    if (!("record_code" in headerMap) && !("sampling_code" in headerMap)) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Header CSV harus memuat kolom 'record_code' / 'kode_rekord' dan 'sampling_code' / 'kode_sampling'",
-        },
-        { status: 400 }
-      )
-    }
+    const samplingEventsRes = await query<{ id: string; sampling_code: string; station_id: string; sampling_date: string }>(
+      `SELECT id, sampling_code, station_id, TO_CHAR(sampling_date, 'YYYY-MM-DD') AS sampling_date FROM sampling_events`
+    )
+    const samplingList = samplingEventsRes.rows
+    const samplingMapByCode = new Map<string, { id: string; station_id: string }>()
+    samplingList.forEach((s) => samplingMapByCode.set(s.sampling_code.toLowerCase().trim(), s))
 
-    // Fetch existing sampling events for mapping
-    const samplingRes = await query(`SELECT id, sampling_code, station_id FROM sampling_events`)
-    const samplingMap = new Map<string, { id: string; station_id: string }>()
-    samplingRes.rows.forEach((r) => {
-      samplingMap.set(r.sampling_code.toLowerCase().trim(), { id: r.id, station_id: r.station_id })
-    })
+    const recordsToSave: WaterQualityRecordToSave[] = []
+    const failedRows: { row: number; reason: string; raw?: string }[] = []
 
-    const parsedRows: CsvRowParsed[] = []
-    const failedRows: { row: number; reason: string; raw: string }[] = []
+    // Detect format across sheets
+    for (const sheetName of workbook.SheetNames) {
+      const sheet = workbook.Sheets[sheetName]
+      if (!sheet) continue
+      const rawRows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "" })
+      if (rawRows.length === 0) continue
 
-    for (let i = 1; i < lines.length; i++) {
-      const line = lines[i].trim()
-      if (!line) continue
+      // Check if it's a Logbook format (multi-row header like Logbook_kualitas_air.xlsx)
+      let isLogbook = false
+      let logbookHeaderIdx = -1
 
-      const cols = parseCsvLine(line, delimiter)
-      const recordCode = ("record_code" in headerMap ? cols[headerMap.record_code] : "") || `WQ-IMP-${Date.now()}-${i}`
-      const samplingCode = "sampling_code" in headerMap ? cols[headerMap.sampling_code] : ""
-
-      if (!samplingCode) {
-        failedRows.push({
-          row: i + 1,
-          reason: "Kode sampling ('sampling_code') kosong",
-          raw: line,
-        })
-        continue
+      for (let r = 0; r < Math.min(rawRows.length, 6); r++) {
+        const rowStr = (rawRows[r] || []).map((c) => String(c || "")).join(" ").toLowerCase()
+        if (
+          (rowStr.includes("lokasi") || rowStr.includes("pantai") || rowStr.includes("koordinat")) &&
+          (rowStr.includes("suhu") || rowStr.includes("do") || rowStr.includes("parameter"))
+        ) {
+          isLogbook = true
+          logbookHeaderIdx = r
+          break
+        }
       }
 
-      if (!samplingMap.has(samplingCode.toLowerCase())) {
-        failedRows.push({
-          row: i + 1,
-          reason: `Kode sampling '${samplingCode}' tidak ditemukan di database`,
-          raw: line,
-        })
-        continue
-      }
+      if (isLogbook) {
+        // PARSE FIELD LOGBOOK FORMAT
+        for (let r = logbookHeaderIdx + 3; r < rawRows.length; r++) {
+          const row = rawRows[r] as unknown[]
+          if (!row || row.length === 0) continue
 
-      parsedRows.push({
-        record_code: recordCode.trim(),
-        sampling_code: samplingCode.trim(),
-        temperature_c: "temperature_c" in headerMap ? parseNumeric(cols[headerMap.temperature_c]) : null,
-        salinity_psu: "salinity_psu" in headerMap ? parseNumeric(cols[headerMap.salinity_psu]) : null,
-        dissolved_oxygen_mgl: "dissolved_oxygen_mgl" in headerMap ? parseNumeric(cols[headerMap.dissolved_oxygen_mgl]) : null,
-        ph: "ph" in headerMap ? parseNumeric(cols[headerMap.ph]) : null,
-        chlorophyll_a_ugl: "chlorophyll_a_ugl" in headerMap ? parseNumeric(cols[headerMap.chlorophyll_a_ugl]) : null,
-        turbidity_ntu: "turbidity_ntu" in headerMap ? parseNumeric(cols[headerMap.turbidity_ntu]) : null,
-        current_speed_ms: "current_speed_ms" in headerMap ? parseNumeric(cols[headerMap.current_speed_ms]) : null,
-        depth_m: "depth_m" in headerMap ? parseNumeric(cols[headerMap.depth_m]) : null,
-        notes: "notes" in headerMap ? (cols[headerMap.notes] || null) : null,
-        row_index: i + 1,
-      })
+          const locationName = String(row[4] || "").trim()
+          if (!locationName || locationName === "-" || locationName === "0") continue
+          if (locationName.toLowerCase().startsWith("distribusi") || locationName.toLowerCase().startsWith("berdasarkan")) break
+
+          const rawDate = row[1]
+          const parsedDate = parseExcelDate(rawDate)
+          if (!parsedDate) {
+            failedRows.push({ row: r + 1, reason: "Tanggal pengukuran tidak valid atau kosong" })
+            continue
+          }
+
+          // Handle coordinates
+          const c1 = parseFloat(String(row[2]).replace(",", "."))
+          const c2 = parseFloat(String(row[3]).replace(",", "."))
+          let lat: number | null = null
+          let lng: number | null = null
+          if (!isNaN(c1) && !isNaN(c2)) {
+            if (c1 < 0) { lat = c1; lng = c2 }
+            else { lat = c2; lng = c1 }
+          }
+
+          const timeStr = parseExcelTime(row[5])
+
+          // Find or create sampling event for this station & date
+          let resolvedSamplingId = userSamplingId
+          if (!resolvedSamplingId) {
+            const existingSampling = samplingList.find(
+              (s) => s.station_id === targetStation.id && s.sampling_date === parsedDate
+            )
+            if (existingSampling) {
+              resolvedSamplingId = existingSampling.id
+            } else {
+              // Create sampling event on-the-fly
+              const dateCompact = parsedDate.replace(/-/g, "")
+              const newSamplingCode = `SMP-${targetStation.station_code}-${dateCompact}`
+              const existingByCode = samplingMapByCode.get(newSamplingCode.toLowerCase())
+              if (existingByCode) {
+                resolvedSamplingId = existingByCode.id
+              } else {
+                const createSamplingSql = `
+                  INSERT INTO sampling_events (
+                    sampling_code, station_id, sampling_date, sampling_time, weather_condition, field_notes, recorded_by
+                  )
+                  VALUES ($1, $2, $3, $4, $5, $6, $7)
+                  ON CONFLICT (sampling_code) DO UPDATE
+                  SET updated_at = CURRENT_TIMESTAMP
+                  RETURNING id, sampling_code
+                `
+                const insSample = await query<{ id: string; sampling_code: string }>(createSamplingSql, [
+                  newSamplingCode,
+                  targetStation.id,
+                  parsedDate,
+                  timeStr ? `${timeStr}:00` : "08:00:00",
+                  "Cerah Berawan",
+                  `Sampling Kualitas Air Lapangan - ${locationName}`,
+                  session.id,
+                ])
+                resolvedSamplingId = insSample.rows[0].id
+                samplingList.push({
+                  id: resolvedSamplingId,
+                  sampling_code: newSamplingCode,
+                  station_id: targetStation.id,
+                  sampling_date: parsedDate,
+                })
+                samplingMapByCode.set(newSamplingCode.toLowerCase(), { id: resolvedSamplingId, station_id: targetStation.id })
+              }
+            }
+          }
+
+          const locSlug = locationName.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 8)
+          const recordCode = `WQ-${parsedDate.replace(/-/g, "")}-${locSlug}-${r + 1}`
+
+          const notesArr: string[] = []
+          if (locationName) notesArr.push(`Lokasi: ${locationName}`)
+          if (timeStr) notesArr.push(`Jam: ${timeStr}`)
+          if (lat !== null && lng !== null) notesArr.push(`Koordinat: ${lat}, ${lng}`)
+
+          recordsToSave.push({
+            record_code: recordCode,
+            sampling_event_id: resolvedSamplingId,
+            temperature_c: parseNumeric(row[6]),
+            ph: parseNumeric(row[7]),
+            dissolved_oxygen_mgl: parseNumeric(row[8]),
+            tds_gl: parseNumeric(row[9]),
+            salinity_psu: parseNumeric(row[10]),
+            turbidity_ntu: parseNumeric(row[11]),
+            ph_mv: parseNumeric(row[12]),
+            orp_mv: parseNumeric(row[13]),
+            conductivity_ms_cm: parseNumeric(row[14]),
+            sigma_t: parseNumeric(row[15]),
+            nitrate_no3_mgl: parseNumeric(row[16]),
+            nitrite_no2_mgl: parseNumeric(row[17]),
+            phosphorus_p_mgl: parseNumeric(row[18]),
+            phosphate_po4_mgl: parseNumeric(row[19]),
+            notes: notesArr.join(" | ") || null,
+            row_index: r + 1,
+          })
+        }
+      } else {
+        // PARSE STANDARD COLUMNAR FORMAT
+        let headerRowIdx = 0
+        const headerMap: Record<string, number> = {}
+
+        for (let r = 0; r < Math.min(rawRows.length, 5); r++) {
+          const row = (rawRows[r] as unknown[]) || []
+          const matches = row.filter((c) => {
+            const s = String(c || "").toLowerCase()
+            return s.includes("code") || s.includes("sampling") || s.includes("suhu") || s.includes("temp") || s.includes("ph")
+          })
+          if (matches.length >= 2) {
+            headerRowIdx = r
+            row.forEach((cell, idx) => {
+              const norm = normalizeHeader(String(cell || ""))
+              if (["record_code", "kode_rekord", "record_id", "id_wq", "id", "kode_wq", "kode"].includes(norm)) {
+                if (!("record_code" in headerMap)) headerMap.record_code = idx
+              } else if (["sampling_code", "kode_sampling", "sampling_id", "id_sampling", "sampling", "kode_sampel"].includes(norm)) {
+                if (!("sampling_code" in headerMap)) headerMap.sampling_code = idx
+              } else if (["temperature_c", "temperature", "suhu", "temp", "suhu_c", "temp_c", "suhu_air"].includes(norm)) {
+                if (!("temperature_c" in headerMap)) headerMap.temperature_c = idx
+              } else if (["salinity_psu", "salinity", "salinitas", "salinitas_psu", "psu", "sal_ppt", "sal"].includes(norm)) {
+                if (!("salinity_psu" in headerMap)) headerMap.salinity_psu = idx
+              } else if (["dissolved_oxygen_mgl", "dissolved_oxygen", "do", "do_val", "do_mgl", "oksigen_terlarut", "do_mg_l"].includes(norm)) {
+                if (!("dissolved_oxygen_mgl" in headerMap)) headerMap.dissolved_oxygen_mgl = idx
+              } else if (["ph", "nilai_ph"].includes(norm)) {
+                if (!("ph" in headerMap)) headerMap.ph = idx
+              } else if (["chlorophyll_a_ugl", "chlorophyll_a", "chlorophyll", "klorofil_a", "klorofil", "klorofil_ugl", "chl_a"].includes(norm)) {
+                if (!("chlorophyll_a_ugl" in headerMap)) headerMap.chlorophyll_a_ugl = idx
+              } else if (["turbidity_ntu", "turbidity", "kekeruhan", "kekeruhan_ntu", "ntu"].includes(norm)) {
+                if (!("turbidity_ntu" in headerMap)) headerMap.turbidity_ntu = idx
+              } else if (["current_speed_ms", "current_speed", "kecepatan_arus", "arus_ms", "arus", "speed_ms"].includes(norm)) {
+                if (!("current_speed_ms" in headerMap)) headerMap.current_speed_ms = idx
+              } else if (["depth_m", "depth", "kedalaman", "kedalaman_m"].includes(norm)) {
+                if (!("depth_m" in headerMap)) headerMap.depth_m = idx
+              } else if (["tds_gl", "tds", "tds_g_l"].includes(norm)) {
+                if (!("tds_gl" in headerMap)) headerMap.tds_gl = idx
+              } else if (["ph_mv", "phmv"].includes(norm)) {
+                if (!("ph_mv" in headerMap)) headerMap.ph_mv = idx
+              } else if (["orp_mv", "orpmv", "orp"].includes(norm)) {
+                if (!("orp_mv" in headerMap)) headerMap.orp_mv = idx
+              } else if (["conductivity_ms_cm", "conductivity", "ms_cm", "konduktivitas"].includes(norm)) {
+                if (!("conductivity_ms_cm" in headerMap)) headerMap.conductivity_ms_cm = idx
+              } else if (["sigma_t", "sigmat", "t", "sigma"].includes(norm)) {
+                if (!("sigma_t" in headerMap)) headerMap.sigma_t = idx
+              } else if (["nitrate_no3_mgl", "no3", "no3_mgl", "nitrat"].includes(norm)) {
+                if (!("nitrate_no3_mgl" in headerMap)) headerMap.nitrate_no3_mgl = idx
+              } else if (["nitrite_no2_mgl", "no2", "no2_mgl", "nitrit"].includes(norm)) {
+                if (!("nitrite_no2_mgl" in headerMap)) headerMap.nitrite_no2_mgl = idx
+              } else if (["phosphorus_p_mgl", "p_mgl", "p", "fosfor"].includes(norm)) {
+                if (!("phosphorus_p_mgl" in headerMap)) headerMap.phosphorus_p_mgl = idx
+              } else if (["phosphate_po4_mgl", "po4", "po4_mgl", "fosfat"].includes(norm)) {
+                if (!("phosphate_po4_mgl" in headerMap)) headerMap.phosphate_po4_mgl = idx
+              } else if (["notes", "catatan", "keterangan", "deskripsi", "note"].includes(norm)) {
+                if (!("notes" in headerMap)) headerMap.notes = idx
+              }
+            })
+            break
+          }
+        }
+
+        for (let r = headerRowIdx + 1; r < rawRows.length; r++) {
+          const row = rawRows[r] as unknown[]
+          if (!row || row.length === 0 || row.every((c) => c === "" || c === null)) continue
+
+          const rawSamplingCode = "sampling_code" in headerMap ? String(row[headerMap.sampling_code] || "").trim() : ""
+          let targetSamplingId = userSamplingId
+
+          if (!targetSamplingId && rawSamplingCode) {
+            const found = samplingMapByCode.get(rawSamplingCode.toLowerCase())
+            if (found) targetSamplingId = found.id
+          }
+
+          if (!targetSamplingId && samplingList.length > 0) {
+            targetSamplingId = samplingList[0].id
+          }
+
+          if (!targetSamplingId) {
+            failedRows.push({
+              row: r + 1,
+              reason: "Sampling event tidak ditemukan. Tentukan 'sampling_code' yang valid di berkas atau pilih Sampling Event di form",
+            })
+            continue
+          }
+
+          const recCodeRaw = "record_code" in headerMap ? String(row[headerMap.record_code] || "").trim() : ""
+          const recordCode = recCodeRaw || `WQ-${Date.now()}-${r + 1}`
+
+          recordsToSave.push({
+            record_code: recordCode,
+            sampling_event_id: targetSamplingId,
+            temperature_c: "temperature_c" in headerMap ? parseNumeric(row[headerMap.temperature_c]) : null,
+            salinity_psu: "salinity_psu" in headerMap ? parseNumeric(row[headerMap.salinity_psu]) : null,
+            dissolved_oxygen_mgl: "dissolved_oxygen_mgl" in headerMap ? parseNumeric(row[headerMap.dissolved_oxygen_mgl]) : null,
+            ph: "ph" in headerMap ? parseNumeric(row[headerMap.ph]) : null,
+            chlorophyll_a_ugl: "chlorophyll_a_ugl" in headerMap ? parseNumeric(row[headerMap.chlorophyll_a_ugl]) : null,
+            turbidity_ntu: "turbidity_ntu" in headerMap ? parseNumeric(row[headerMap.turbidity_ntu]) : null,
+            current_speed_ms: "current_speed_ms" in headerMap ? parseNumeric(row[headerMap.current_speed_ms]) : null,
+            depth_m: "depth_m" in headerMap ? parseNumeric(row[headerMap.depth_m]) : null,
+            tds_gl: "tds_gl" in headerMap ? parseNumeric(row[headerMap.tds_gl]) : null,
+            ph_mv: "ph_mv" in headerMap ? parseNumeric(row[headerMap.ph_mv]) : null,
+            orp_mv: "orp_mv" in headerMap ? parseNumeric(row[headerMap.orp_mv]) : null,
+            conductivity_ms_cm: "conductivity_ms_cm" in headerMap ? parseNumeric(row[headerMap.conductivity_ms_cm]) : null,
+            sigma_t: "sigma_t" in headerMap ? parseNumeric(row[headerMap.sigma_t]) : null,
+            nitrate_no3_mgl: "nitrate_no3_mgl" in headerMap ? parseNumeric(row[headerMap.nitrate_no3_mgl]) : null,
+            nitrite_no2_mgl: "nitrite_no2_mgl" in headerMap ? parseNumeric(row[headerMap.nitrite_no2_mgl]) : null,
+            phosphorus_p_mgl: "phosphorus_p_mgl" in headerMap ? parseNumeric(row[headerMap.phosphorus_p_mgl]) : null,
+            phosphate_po4_mgl: "phosphate_po4_mgl" in headerMap ? parseNumeric(row[headerMap.phosphate_po4_mgl]) : null,
+            notes: "notes" in headerMap ? String(row[headerMap.notes] || "").trim() || null : null,
+            row_index: r + 1,
+          })
+        }
+      }
     }
 
-    if (parsedRows.length === 0) {
+    if (recordsToSave.length === 0) {
       return NextResponse.json(
         {
           success: false,
-          error: "Tidak ada baris data valid yang dapat diimpor",
+          error: "Tidak ada baris data valid yang dapat diimpor dari berkas ini",
           failed_rows: failedRows,
         },
         { status: 400 }
@@ -265,16 +425,19 @@ export async function POST(request: Request) {
     try {
       await client.query("BEGIN")
 
-      for (const r of parsedRows) {
-        const samplingInfo = samplingMap.get(r.sampling_code.toLowerCase())!
-
+      for (const r of recordsToSave) {
         const upsertSql = `
           INSERT INTO water_quality_records (
             record_code, sampling_event_id, temperature_c, salinity_psu,
             dissolved_oxygen_mgl, ph, chlorophyll_a_ugl, turbidity_ntu,
-            current_speed_ms, depth_m, notes
+            current_speed_ms, depth_m, tds_gl, ph_mv, orp_mv, conductivity_ms_cm,
+            sigma_t, nitrate_no3_mgl, nitrite_no2_mgl, phosphorus_p_mgl, phosphate_po4_mgl,
+            notes
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+          VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+            $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
+          )
           ON CONFLICT (record_code) DO UPDATE
           SET 
             sampling_event_id = EXCLUDED.sampling_event_id,
@@ -286,13 +449,22 @@ export async function POST(request: Request) {
             turbidity_ntu = COALESCE(EXCLUDED.turbidity_ntu, water_quality_records.turbidity_ntu),
             current_speed_ms = COALESCE(EXCLUDED.current_speed_ms, water_quality_records.current_speed_ms),
             depth_m = COALESCE(EXCLUDED.depth_m, water_quality_records.depth_m),
+            tds_gl = COALESCE(EXCLUDED.tds_gl, water_quality_records.tds_gl),
+            ph_mv = COALESCE(EXCLUDED.ph_mv, water_quality_records.ph_mv),
+            orp_mv = COALESCE(EXCLUDED.orp_mv, water_quality_records.orp_mv),
+            conductivity_ms_cm = COALESCE(EXCLUDED.conductivity_ms_cm, water_quality_records.conductivity_ms_cm),
+            sigma_t = COALESCE(EXCLUDED.sigma_t, water_quality_records.sigma_t),
+            nitrate_no3_mgl = COALESCE(EXCLUDED.nitrate_no3_mgl, water_quality_records.nitrate_no3_mgl),
+            nitrite_no2_mgl = COALESCE(EXCLUDED.nitrite_no2_mgl, water_quality_records.nitrite_no2_mgl),
+            phosphorus_p_mgl = COALESCE(EXCLUDED.phosphorus_p_mgl, water_quality_records.phosphorus_p_mgl),
+            phosphate_po4_mgl = COALESCE(EXCLUDED.phosphate_po4_mgl, water_quality_records.phosphate_po4_mgl),
             notes = COALESCE(EXCLUDED.notes, water_quality_records.notes),
             updated_at = CURRENT_TIMESTAMP
           RETURNING (xmax = 0) AS is_inserted
         `
         const res = await client.query(upsertSql, [
           r.record_code,
-          samplingInfo.id,
+          r.sampling_event_id,
           r.temperature_c,
           r.salinity_psu,
           r.dissolved_oxygen_mgl,
@@ -301,6 +473,15 @@ export async function POST(request: Request) {
           r.turbidity_ntu,
           r.current_speed_ms,
           r.depth_m,
+          r.tds_gl,
+          r.ph_mv,
+          r.orp_mv,
+          r.conductivity_ms_cm,
+          r.sigma_t,
+          r.nitrate_no3_mgl,
+          r.nitrite_no2_mgl,
+          r.phosphorus_p_mgl,
+          r.phosphate_po4_mgl,
           r.notes,
         ])
 
@@ -311,23 +492,25 @@ export async function POST(request: Request) {
         }
       }
 
-      // Record entry in datasets table (PRD 4 & 6)
+      // Record in datasets table
+      const fileExt = originalFileName.endsWith(".csv") ? "CSV" : "XLSX"
+      const generatedFileName = `WQ_UPLOAD_${Date.now()}.${fileExt.toLowerCase()}`
       const datasetSql = `
         INSERT INTO datasets (
-          file_name, original_name, file_format, file_size_bytes, storage_path, description, uploaded_by
+          file_name, original_name, file_format, file_size_bytes, storage_path, description, uploaded_by, station_id
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING id
       `
-      const generatedFileName = `WQ_UPLOAD_${Date.now()}.csv`
       const datasetRes = await client.query(datasetSql, [
         generatedFileName,
         originalFileName,
-        "CSV",
+        fileExt,
         fileSizeBytes,
         `/uploads/datasets/${generatedFileName}`,
-        `Bulk import parameter kualitas air (${parsedRows.length} baris data diproses)`,
+        `Impor parameter kualitas air (${recordsToSave.length} baris data diproses)`,
         session.id,
+        targetStation.id,
       ])
 
       datasetId = datasetRes.rows[0]?.id || null
@@ -336,9 +519,9 @@ export async function POST(request: Request) {
 
       return NextResponse.json({
         success: true,
-        message: `Berhasil memproses ${parsedRows.length} data kualitas air (${insertedCount} baru, ${updatedCount} diperbarui)`,
+        message: `Berhasil memproses ${recordsToSave.length} data kualitas air (${insertedCount} baru, ${updatedCount} diperbarui)`,
         data: {
-          total_rows_processed: parsedRows.length,
+          total_rows_processed: recordsToSave.length,
           inserted_count: insertedCount,
           updated_count: updatedCount,
           error_count: failedRows.length,
@@ -357,7 +540,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         success: false,
-        error: "Gagal memproses unggahan berkas CSV kualitas air",
+        error: "Gagal memproses unggahan berkas spreadsheet kualitas air",
       },
       { status: 500 }
     )
