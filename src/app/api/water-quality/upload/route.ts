@@ -5,7 +5,10 @@ import * as XLSX from "xlsx"
 
 interface WaterQualityRecordToSave {
   record_code: string
-  sampling_event_id: string
+  sampling_event_id?: string | null
+  data_source_type?: string
+  source_title?: string | null
+  source_url?: string | null
   temperature_c?: number | null
   salinity_psu?: number | null
   dissolved_oxygen_mgl?: number | null
@@ -343,6 +346,12 @@ export async function POST(request: Request) {
                 if (!("phosphorus_p_mgl" in headerMap)) headerMap.phosphorus_p_mgl = idx
               } else if (["phosphate_po4_mgl", "po4", "po4_mgl", "fosfat"].includes(norm)) {
                 if (!("phosphate_po4_mgl" in headerMap)) headerMap.phosphate_po4_mgl = idx
+              } else if (["data_source_type", "sumber_data", "tipe_sumber", "jenis_sumber", "source_type"].includes(norm)) {
+                if (!("data_source_type" in headerMap)) headerMap.data_source_type = idx
+              } else if (["source_title", "judul_jurnal", "judul", "jurnal", "publikasi", "artikel", "sumber_bacaan"].includes(norm)) {
+                if (!("source_title" in headerMap)) headerMap.source_title = idx
+              } else if (["source_url", "url_jurnal", "url", "doi", "link", "tautan"].includes(norm)) {
+                if (!("source_url" in headerMap)) headerMap.source_url = idx
               } else if (["notes", "catatan", "keterangan", "deskripsi", "note"].includes(norm)) {
                 if (!("notes" in headerMap)) headerMap.notes = idx
               }
@@ -363,24 +372,18 @@ export async function POST(request: Request) {
             if (found) targetSamplingId = found.id
           }
 
-          if (!targetSamplingId && samplingList.length > 0) {
-            targetSamplingId = samplingList[0].id
-          }
-
-          if (!targetSamplingId) {
-            failedRows.push({
-              row: r + 1,
-              reason: "Sampling event tidak ditemukan. Tentukan 'sampling_code' yang valid di berkas atau pilih Sampling Event di form",
-            })
-            continue
-          }
-
           const recCodeRaw = "record_code" in headerMap ? String(row[headerMap.record_code] || "").trim() : ""
           const recordCode = recCodeRaw || `WQ-${Date.now()}-${r + 1}`
 
+          const dataSourceTypeRaw = "data_source_type" in headerMap ? String(row[headerMap.data_source_type] || "").trim() : ""
+          const dataSourceType = dataSourceTypeRaw || (targetSamplingId ? "Hasil Sampling" : "Jurnal / Publikasi")
+
           recordsToSave.push({
             record_code: recordCode,
-            sampling_event_id: targetSamplingId,
+            sampling_event_id: targetSamplingId || null,
+            data_source_type: dataSourceType,
+            source_title: "source_title" in headerMap ? String(row[headerMap.source_title] || "").trim() || null : null,
+            source_url: "source_url" in headerMap ? String(row[headerMap.source_url] || "").trim() || null : null,
             temperature_c: "temperature_c" in headerMap ? parseNumeric(row[headerMap.temperature_c]) : null,
             salinity_psu: "salinity_psu" in headerMap ? parseNumeric(row[headerMap.salinity_psu]) : null,
             dissolved_oxygen_mgl: "dissolved_oxygen_mgl" in headerMap ? parseNumeric(row[headerMap.dissolved_oxygen_mgl]) : null,
@@ -428,19 +431,23 @@ export async function POST(request: Request) {
       for (const r of recordsToSave) {
         const upsertSql = `
           INSERT INTO water_quality_records (
-            record_code, sampling_event_id, temperature_c, salinity_psu,
-            dissolved_oxygen_mgl, ph, chlorophyll_a_ugl, turbidity_ntu,
+            record_code, sampling_event_id, data_source_type, source_title, source_url,
+            temperature_c, salinity_psu, dissolved_oxygen_mgl, ph, chlorophyll_a_ugl, turbidity_ntu,
             current_speed_ms, depth_m, tds_gl, ph_mv, orp_mv, conductivity_ms_cm,
             sigma_t, nitrate_no3_mgl, nitrite_no2_mgl, phosphorus_p_mgl, phosphate_po4_mgl,
             notes
           )
           VALUES (
             $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-            $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
+            $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
+            $21, $22, $23
           )
           ON CONFLICT (record_code) DO UPDATE
           SET 
             sampling_event_id = EXCLUDED.sampling_event_id,
+            data_source_type = COALESCE(EXCLUDED.data_source_type, water_quality_records.data_source_type),
+            source_title = COALESCE(EXCLUDED.source_title, water_quality_records.source_title),
+            source_url = COALESCE(EXCLUDED.source_url, water_quality_records.source_url),
             temperature_c = COALESCE(EXCLUDED.temperature_c, water_quality_records.temperature_c),
             salinity_psu = COALESCE(EXCLUDED.salinity_psu, water_quality_records.salinity_psu),
             dissolved_oxygen_mgl = COALESCE(EXCLUDED.dissolved_oxygen_mgl, water_quality_records.dissolved_oxygen_mgl),
@@ -464,25 +471,28 @@ export async function POST(request: Request) {
         `
         const res = await client.query(upsertSql, [
           r.record_code,
-          r.sampling_event_id,
-          r.temperature_c,
-          r.salinity_psu,
-          r.dissolved_oxygen_mgl,
-          r.ph,
-          r.chlorophyll_a_ugl,
-          r.turbidity_ntu,
-          r.current_speed_ms,
-          r.depth_m,
-          r.tds_gl,
-          r.ph_mv,
-          r.orp_mv,
-          r.conductivity_ms_cm,
-          r.sigma_t,
-          r.nitrate_no3_mgl,
-          r.nitrite_no2_mgl,
-          r.phosphorus_p_mgl,
-          r.phosphate_po4_mgl,
-          r.notes,
+          r.sampling_event_id ?? null,
+          r.data_source_type || "Hasil Sampling",
+          r.source_title ?? null,
+          r.source_url ?? null,
+          r.temperature_c ?? null,
+          r.salinity_psu ?? null,
+          r.dissolved_oxygen_mgl ?? null,
+          r.ph ?? null,
+          r.chlorophyll_a_ugl ?? null,
+          r.turbidity_ntu ?? null,
+          r.current_speed_ms ?? null,
+          r.depth_m ?? null,
+          r.tds_gl ?? null,
+          r.ph_mv ?? null,
+          r.orp_mv ?? null,
+          r.conductivity_ms_cm ?? null,
+          r.sigma_t ?? null,
+          r.nitrate_no3_mgl ?? null,
+          r.nitrite_no2_mgl ?? null,
+          r.phosphorus_p_mgl ?? null,
+          r.phosphate_po4_mgl ?? null,
+          r.notes ?? null,
         ])
 
         if (res.rows[0]?.is_inserted) {

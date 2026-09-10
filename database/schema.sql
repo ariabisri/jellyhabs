@@ -200,7 +200,10 @@ EXECUTE FUNCTION update_updated_at_column();
 CREATE TABLE IF NOT EXISTS water_quality_records (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     record_code VARCHAR(50) NOT NULL UNIQUE,
-    sampling_event_id UUID NOT NULL REFERENCES sampling_events(id) ON DELETE CASCADE,
+    sampling_event_id UUID REFERENCES sampling_events(id) ON DELETE SET NULL,
+    data_source_type VARCHAR(50) NOT NULL DEFAULT 'Hasil Sampling',
+    source_title VARCHAR(500),
+    source_url VARCHAR(1024),
     temperature_c DECIMAL(5, 2),
     salinity_psu DECIMAL(5, 2),
     dissolved_oxygen_mgl DECIMAL(5, 2),

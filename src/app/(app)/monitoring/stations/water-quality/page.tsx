@@ -57,7 +57,10 @@ import { useAuth } from "@/lib/auth-context"
 interface WaterQualityRecord {
   id: string
   record_code: string
-  sampling_event_id: string
+  sampling_event_id: string | null
+  data_source_type?: string | null
+  source_title?: string | null
+  source_url?: string | null
   sampling_code: string
   sampling_date: string
   sampling_time: string | null
@@ -134,6 +137,9 @@ function formatIndoDate(dateStr: string | null | undefined): string {
 const initialFormData = {
   record_code: "",
   sampling_event_id: "",
+  data_source_type: "Hasil Sampling",
+  source_title: "",
+  source_url: "",
   temperature_c: "",
   salinity_psu: "",
   dissolved_oxygen_mgl: "",
@@ -270,6 +276,9 @@ export default function WaterQualityPage() {
       ...initialFormData,
       record_code: `WQ-${Date.now().toString().slice(-4)}`,
       sampling_event_id: samplingOptions[0]?.id || "",
+      data_source_type: "Hasil Sampling",
+      source_title: "",
+      source_url: "",
     })
     setShowExtendedParams(false)
     setFormError(null)
@@ -281,7 +290,10 @@ export default function WaterQualityPage() {
     setEditingId(rec.id)
     setFormData({
       record_code: rec.record_code,
-      sampling_event_id: rec.sampling_event_id,
+      sampling_event_id: rec.sampling_event_id || "",
+      data_source_type: rec.data_source_type || (rec.sampling_event_id ? "Hasil Sampling" : "Jurnal / Publikasi"),
+      source_title: rec.source_title || "",
+      source_url: rec.source_url || "",
       temperature_c: rec.temperature_c !== null ? String(rec.temperature_c) : "",
       salinity_psu: rec.salinity_psu !== null ? String(rec.salinity_psu) : "",
       dissolved_oxygen_mgl: rec.dissolved_oxygen_mgl !== null ? String(rec.dissolved_oxygen_mgl) : "",
@@ -319,7 +331,10 @@ export default function WaterQualityPage() {
     try {
       const payload = {
         record_code: formData.record_code.trim(),
-        sampling_event_id: formData.sampling_event_id,
+        sampling_event_id: formData.data_source_type === "Hasil Sampling" ? (formData.sampling_event_id || null) : null,
+        data_source_type: formData.data_source_type,
+        source_title: formData.source_title.trim() || null,
+        source_url: formData.source_url.trim() || null,
         temperature_c: formData.temperature_c ? parseFloat(formData.temperature_c) : null,
         salinity_psu: formData.salinity_psu ? parseFloat(formData.salinity_psu) : null,
         dissolved_oxygen_mgl: formData.dissolved_oxygen_mgl ? parseFloat(formData.dissolved_oxygen_mgl) : null,
@@ -602,7 +617,7 @@ export default function WaterQualityPage() {
           <TableHeader>
             <TableRow>
               <TableHead className="w-[120px]">Kode WQ</TableHead>
-              <TableHead>Sampling Event & Waktu</TableHead>
+              <TableHead>Sumber Data</TableHead>
               <TableHead>Stasiun / Lokasi</TableHead>
               <TableHead className="text-right">Suhu (°C)</TableHead>
               <TableHead className="text-right">Sal (PSU)</TableHead>
@@ -642,9 +657,7 @@ export default function WaterQualityPage() {
             ) : (
               records.map((r) => {
                 const chlVal = Number(r.chlorophyll_a_ugl) || 0
-                const hasExtended = Boolean(
-                  r.tds_gl || r.orp_mv || r.conductivity_ms_cm || r.nitrate_no3_mgl || r.phosphate_po4_mgl
-                )
+                const isJournal = r.data_source_type === "Jurnal / Publikasi" || Boolean(r.source_title && !r.sampling_event_id)
                 return (
                   <TableRow key={r.id} className="hover:bg-muted/40 transition-colors">
                     <TableCell className="font-mono font-bold text-primary">
@@ -652,19 +665,39 @@ export default function WaterQualityPage() {
                         <Droplets className="h-3.5 w-3.5 text-primary shrink-0" />
                         <span>{r.record_code}</span>
                       </div>
-                      {hasExtended && (
-                        <Badge variant="outline" className="mt-1 text-[9px] py-0 px-1 font-mono text-emerald-600 border-emerald-500/30 bg-emerald-500/10">
-                          Logbook+
-                        </Badge>
-                      )}
                     </TableCell>
                     <TableCell>
-                      <div className="flex flex-col text-xs">
-                        <span className="font-mono font-semibold text-foreground">
-                          {r.sampling_code}
-                        </span>
-                        <span className="text-muted-foreground">{formatIndoDate(r.sampling_date)}</span>
-                      </div>
+                      {isJournal ? (
+                        <div className="flex flex-col text-xs gap-0.5">
+                          <Badge variant="outline" className="w-fit text-[10px] py-0 px-1.5 font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30">
+                            Jurnal / Publikasi
+                          </Badge>
+                          <span className="font-medium text-foreground line-clamp-1 max-w-[220px]" title={r.source_title || "Artikel Jurnal Ilmiah"}>
+                            {r.source_title || "Referensi Artikel Jurnal"}
+                          </span>
+                          {r.source_url && (
+                            <a
+                              href={r.source_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[11px] text-primary hover:underline font-mono truncate max-w-[200px]"
+                              title={r.source_url}
+                            >
+                              Tautan Referensi / DOI &rarr;
+                            </a>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex flex-col text-xs gap-0.5">
+                          <Badge variant="outline" className="w-fit text-[10px] py-0 px-1.5 font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
+                            Hasil Sampling
+                          </Badge>
+                          <span className="font-mono font-semibold text-foreground">
+                            {r.sampling_code && r.sampling_code !== "-" ? r.sampling_code : "Sampling Event"}
+                          </span>
+                          <span className="text-muted-foreground">{formatIndoDate(r.sampling_date)}</span>
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Link
@@ -766,30 +799,46 @@ export default function WaterQualityPage() {
               </DialogTitle>
             </div>
             <DialogDescription className="text-xs text-muted-foreground">
-              Event Sampling: <strong className="text-foreground">{detailRecord?.sampling_code}</strong> | Stasiun: <strong className="text-foreground">{detailRecord?.station_name}</strong> ({detailRecord?.city})
+              {detailRecord?.data_source_type === "Jurnal / Publikasi" || detailRecord?.source_title ? (
+                <>Sumber: <strong className="text-foreground">Jurnal / Publikasi</strong> | Stasiun: <strong className="text-foreground">{detailRecord?.station_name}</strong> ({detailRecord?.city})</>
+              ) : (
+                <>Event Sampling: <strong className="text-foreground">{detailRecord?.sampling_code}</strong> | Stasiun: <strong className="text-foreground">{detailRecord?.station_name}</strong> ({detailRecord?.city})</>
+              )}
             </DialogDescription>
           </DialogHeader>
 
           {detailRecord && (
             <div className="space-y-4 py-2 text-xs">
-              {/* Info Utama */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 rounded-lg bg-muted/40 border border-border/50">
+              {/* Info Utama Sumber Data */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3 rounded-lg bg-muted/40 border border-border/50">
                 <div>
-                  <span className="text-muted-foreground block">Tanggal:</span>
-                  <span className="font-semibold text-foreground">{formatIndoDate(detailRecord.sampling_date)}</span>
+                  <span className="text-muted-foreground block text-[11px]">Tipe Sumber Data:</span>
+                  <Badge variant="outline" className="mt-0.5 text-[10px] bg-primary/10 text-primary border-primary/20">
+                    {detailRecord.data_source_type || (detailRecord.sampling_event_id ? "Hasil Sampling" : "Jurnal / Publikasi")}
+                  </Badge>
                 </div>
-                <div>
-                  <span className="text-muted-foreground block">Waktu:</span>
-                  <span className="font-semibold text-foreground">{detailRecord.sampling_time || "-"} WIB</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground block">Kondisi Cuaca:</span>
-                  <span className="font-semibold text-foreground">{detailRecord.weather_condition || "-"}</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground block">Tautan HABs:</span>
-                  <span className="font-semibold text-foreground">{detailRecord.linked_bloom_events_count} kejadian</span>
-                </div>
+                {detailRecord.data_source_type === "Jurnal / Publikasi" || detailRecord.source_title ? (
+                  <div className="sm:col-span-2">
+                    <span className="text-muted-foreground block text-[11px]">Judul Referensi Jurnal:</span>
+                    <span className="font-semibold text-foreground block">{detailRecord.source_title || "Rujukan Artikel Jurnal"}</span>
+                    {detailRecord.source_url && (
+                      <a href={detailRecord.source_url} target="_blank" rel="noreferrer" className="text-primary hover:underline font-mono text-[11px] block mt-0.5">
+                        {detailRecord.source_url} &rarr;
+                      </a>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <span className="text-muted-foreground block text-[11px]">Tanggal Sampling:</span>
+                      <span className="font-semibold text-foreground">{formatIndoDate(detailRecord.sampling_date)}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block text-[11px]">Waktu & Cuaca:</span>
+                      <span className="font-semibold text-foreground">{detailRecord.sampling_time || "-"} WIB ({detailRecord.weather_condition || "Normal"})</span>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Parameter Fisika Standar */}
@@ -969,6 +1018,28 @@ export default function WaterQualityPage() {
                 </div>
 
                 <div className="space-y-1.5">
+                  <Label htmlFor="data_source_type">Sumber Data *</Label>
+                  <Select
+                    value={formData.data_source_type}
+                    onValueChange={(val) =>
+                      setFormData({ ...formData, data_source_type: val || "Hasil Sampling" })
+                    }
+                  >
+                    <SelectTrigger id="data_source_type" className="text-xs">
+                      <SelectValue placeholder="Pilih Sumber Data..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Hasil Sampling">Hasil Sampling Lapangan</SelectItem>
+                      <SelectItem value="Jurnal / Publikasi">Referensi Journal / Publikasi Ilmiah</SelectItem>
+                      <SelectItem value="Laporan Lapangan">Laporan Dinas / Lembaga</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Conditional Inputs based on Data Source */}
+              {formData.data_source_type === "Hasil Sampling" ? (
+                <div className="space-y-1.5">
                   <Label htmlFor="sampling_event_id">Sampling Event Terkait *</Label>
                   <Select
                     value={formData.sampling_event_id}
@@ -988,7 +1059,33 @@ export default function WaterQualityPage() {
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-lg border bg-blue-500/5">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="source_title">Judul Jurnal / Artikel Publikasi *</Label>
+                    <Input
+                      id="source_title"
+                      placeholder="misal: Jurnal Oseanografi (Prasetyo et al., 2024)"
+                      value={formData.source_title}
+                      onChange={(e) =>
+                        setFormData({ ...formData, source_title: e.target.value })
+                      }
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="source_url">DOI / URL Tautan Jurnal (Opsional)</Label>
+                    <Input
+                      id="source_url"
+                      placeholder="misal: https://doi.org/10.1016/j.jmarsys.2024.102345"
+                      value={formData.source_url}
+                      onChange={(e) =>
+                        setFormData({ ...formData, source_url: e.target.value })
+                      }
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Parameter Fisika Dasar */}
               <div className="rounded-lg border p-3 bg-muted/20 space-y-3">

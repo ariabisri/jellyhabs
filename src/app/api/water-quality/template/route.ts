@@ -20,6 +20,9 @@ export async function GET() {
   const standardHeaders = [
     "record_code",
     "sampling_code",
+    "data_source_type",
+    "source_title",
+    "source_url",
     "temperature_c",
     "ph",
     "dissolved_oxygen_mgl",
@@ -43,6 +46,9 @@ export async function GET() {
     [
       "WQ-202607-001",
       "SMP-003",
+      "Hasil Sampling",
+      "",
+      "",
       26.5,
       8.45,
       7.2,
@@ -63,7 +69,10 @@ export async function GET() {
     ],
     [
       "WQ-202607-002",
-      "SMP-003",
+      "",
+      "Jurnal / Publikasi",
+      "Jurnal Ilmu Kelautan (Prasetyo et al., 2024)",
+      "https://doi.org/10.1016/j.jmarsys.2024.102345",
       27.1,
       8.38,
       6.9,
@@ -80,7 +89,7 @@ export async function GET() {
       0.72,
       0.40,
       2.0,
-      "Stasiun pemantauan terluar",
+      "Data sekunder dari jurnal ilmiah",
     ],
   ]
   const wsStandard = XLSX.utils.aoa_to_sheet(standardRows)
@@ -90,7 +99,10 @@ export async function GET() {
   const guideData = [
     ["Parameter", "Satuan", "Keterangan"],
     ["record_code", "Teks", "Kode unik pencatatan (opsional, otomatis dibuat jika kosong)"],
-    ["sampling_code", "Teks", "Kode event sampling target (wajib untuk format standar, e.g. SMP-001)"],
+    ["sampling_code", "Teks", "Kode event sampling target (opsional jika sumber data dari Jurnal/Publikasi, e.g. SMP-001)"],
+    ["data_source_type", "Teks", "Tipe sumber data: 'Hasil Sampling' atau 'Jurnal / Publikasi'"],
+    ["source_title", "Teks", "Judul jurnal, nama artikel, atau nama sumber rujukan publikasi"],
+    ["source_url", "Teks", "URL, DOI, atau link tautan referensi jurnal / publikasi ilmiah"],
     ["temperature_c / Suhu", "°C", "Suhu air laut"],
     ["ph", "Skala 0-14", "Derajat keasaman air laut"],
     ["dissolved_oxygen_mgl / DO", "mg/L", "Oksigen terlarut (Dissolved Oxygen)"],

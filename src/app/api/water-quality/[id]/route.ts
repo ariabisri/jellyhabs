@@ -9,10 +9,10 @@ const updateWaterQualitySchema = z.object({
     .min(2, "Kode rekord minimal 2 karakter")
     .max(50, "Kode rekord maksimal 50 karakter")
     .trim(),
-  sampling_event_id: z
-    .string()
-    .min(1, "Sampling event harus dipilih")
-    .trim(),
+  sampling_event_id: z.string().nullable().optional(),
+  data_source_type: z.string().optional().default("Hasil Sampling"),
+  source_title: z.string().nullable().optional(),
+  source_url: z.string().nullable().optional(),
   temperature_c: z.number().nullable().optional(),
   salinity_psu: z.number().nullable().optional(),
   dissolved_oxygen_mgl: z.number().nullable().optional(),
@@ -46,17 +46,20 @@ export async function GET(
         wq.id,
         wq.record_code,
         wq.sampling_event_id,
-        se.sampling_code,
-        TO_CHAR(se.sampling_date, 'YYYY-MM-DD') AS sampling_date,
+        wq.data_source_type,
+        wq.source_title,
+        wq.source_url,
+        COALESCE(se.sampling_code, '-') AS sampling_code,
+        TO_CHAR(COALESCE(se.sampling_date, wq.created_at::date), 'YYYY-MM-DD') AS sampling_date,
         TO_CHAR(se.sampling_time, 'HH24:MI') AS sampling_time,
         se.weather_condition,
         se.field_notes AS sampling_notes,
         u.full_name AS sampling_recorder_name,
         s.id AS station_id,
-        s.station_code,
-        s.name AS station_name,
-        s.city,
-        s.province,
+        COALESCE(s.station_code, 'ST-03') AS station_code,
+        COALESCE(s.name, 'Stasiun Pengamatan') AS station_name,
+        COALESCE(s.city, 'Pesisir') AS city,
+        COALESCE(s.province, '-') AS province,
         s.latitude,
         s.longitude,
         wq.temperature_c,
@@ -100,9 +103,9 @@ export async function GET(
           '[]'::json
         ) AS linked_bloom_events
       FROM water_quality_records wq
-      JOIN sampling_events se ON wq.sampling_event_id = se.id
+      LEFT JOIN sampling_events se ON wq.sampling_event_id = se.id
       LEFT JOIN users u ON se.recorded_by = u.id
-      JOIN monitoring_stations s ON se.station_id = s.id
+      LEFT JOIN monitoring_stations s ON se.station_id = s.id
       WHERE wq.id::text = $1 OR LOWER(wq.record_code) = LOWER($1)
       LIMIT 1
     `
@@ -169,6 +172,9 @@ export async function PUT(
     const {
       record_code,
       sampling_event_id,
+      data_source_type,
+      source_title,
+      source_url,
       temperature_c,
       salinity_psu,
       dissolved_oxygen_mgl,
@@ -223,51 +229,47 @@ export async function PUT(
       )
     }
 
-    // Verify sampling event
-    const samplingCheck = await query(
-      `SELECT id FROM sampling_events WHERE id::text = $1 OR LOWER(sampling_code) = LOWER($1) LIMIT 1`,
-      [sampling_event_id]
-    )
-
-    if (samplingCheck.rows.length === 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Sampling event yang dipilih tidak ditemukan",
-        },
-        { status: 400 }
+    let resolvedSamplingId = null
+    if (sampling_event_id && sampling_event_id.trim() !== "") {
+      const samplingCheck = await query(
+        `SELECT id FROM sampling_events WHERE id::text = $1 OR LOWER(sampling_code) = LOWER($1) LIMIT 1`,
+        [sampling_event_id.trim()]
       )
+      if (samplingCheck.rows.length > 0) {
+        resolvedSamplingId = samplingCheck.rows[0].id
+      }
     }
-
-    const resolvedSamplingId = samplingCheck.rows[0].id
 
     const updateSql = `
       UPDATE water_quality_records
       SET 
         record_code = $1,
         sampling_event_id = $2,
-        temperature_c = $3,
-        salinity_psu = $4,
-        dissolved_oxygen_mgl = $5,
-        ph = $6,
-        chlorophyll_a_ugl = $7,
-        turbidity_ntu = $8,
-        current_speed_ms = $9,
-        depth_m = $10,
-        tds_gl = $11,
-        ph_mv = $12,
-        orp_mv = $13,
-        conductivity_ms_cm = $14,
-        sigma_t = $15,
-        nitrate_no3_mgl = $16,
-        nitrite_no2_mgl = $17,
-        phosphorus_p_mgl = $18,
-        phosphate_po4_mgl = $19,
-        notes = $20,
+        data_source_type = $3,
+        source_title = $4,
+        source_url = $5,
+        temperature_c = $6,
+        salinity_psu = $7,
+        dissolved_oxygen_mgl = $8,
+        ph = $9,
+        chlorophyll_a_ugl = $10,
+        turbidity_ntu = $11,
+        current_speed_ms = $12,
+        depth_m = $13,
+        tds_gl = $14,
+        ph_mv = $15,
+        orp_mv = $16,
+        conductivity_ms_cm = $17,
+        sigma_t = $18,
+        nitrate_no3_mgl = $19,
+        nitrite_no2_mgl = $20,
+        phosphorus_p_mgl = $21,
+        phosphate_po4_mgl = $22,
+        notes = $23,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $21
+      WHERE id = $24
       RETURNING 
-        id, record_code, sampling_event_id, 
+        id, record_code, sampling_event_id, data_source_type, source_title, source_url,
         temperature_c, salinity_psu, dissolved_oxygen_mgl, ph, chlorophyll_a_ugl,
         turbidity_ntu, current_speed_ms, depth_m,
         tds_gl, ph_mv, orp_mv, conductivity_ms_cm, sigma_t,
@@ -277,6 +279,9 @@ export async function PUT(
     const updateRes = await query(updateSql, [
       record_code,
       resolvedSamplingId,
+      data_source_type || "Hasil Sampling",
+      source_title?.trim() || null,
+      source_url?.trim() || null,
       temperature_c ?? null,
       salinity_psu ?? null,
       dissolved_oxygen_mgl ?? null,
