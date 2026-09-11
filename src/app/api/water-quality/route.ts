@@ -10,9 +10,13 @@ const createWaterQualitySchema = z.object({
     .max(50, "Kode rekord maksimal 50 karakter")
     .trim(),
   sampling_event_id: z.string().nullable().optional(),
+  station_id: z.string().nullable().optional(),
+  beach_id: z.string().nullable().optional(),
   data_source_type: z.string().optional().default("Hasil Sampling"),
   source_title: z.string().nullable().optional(),
   source_url: z.string().nullable().optional(),
+  latitude: z.number().nullable().optional(),
+  longitude: z.number().nullable().optional(),
   temperature_c: z.number().nullable().optional(),
   salinity_psu: z.number().nullable().optional(),
   dissolved_oxygen_mgl: z.number().nullable().optional(),
@@ -43,26 +47,29 @@ export async function GET(request: Request) {
     const dateTo = searchParams.get("date_to") || ""
     const minChlorophyll = searchParams.get("min_chlorophyll") || ""
     const maxChlorophyll = searchParams.get("max_chlorophyll") || ""
+    const year = searchParams.get("year") || ""
 
     let sql = `
       SELECT 
         wq.id,
         wq.record_code,
         wq.sampling_event_id,
+        COALESCE(wq.station_id, se.station_id) AS station_id,
+        wq.beach_id,
+        b.name AS beach_name,
         wq.data_source_type,
         wq.source_title,
         wq.source_url,
+        COALESCE(wq.latitude, b.latitude, s.latitude) AS latitude,
+        COALESCE(wq.longitude, b.longitude, s.longitude) AS longitude,
         COALESCE(se.sampling_code, '-') AS sampling_code,
         TO_CHAR(COALESCE(se.sampling_date, wq.created_at::date), 'YYYY-MM-DD') AS sampling_date,
         TO_CHAR(se.sampling_time, 'HH24:MI') AS sampling_time,
         se.weather_condition,
-        s.id AS station_id,
         COALESCE(s.station_code, 'ST-03') AS station_code,
         COALESCE(s.name, 'Stasiun Pengamatan') AS station_name,
         COALESCE(s.city, 'Pesisir') AS city,
         COALESCE(s.province, '-') AS province,
-        s.latitude,
-        s.longitude,
         wq.temperature_c,
         wq.salinity_psu,
         wq.dissolved_oxygen_mgl,
@@ -90,7 +97,8 @@ export async function GET(request: Request) {
         ) AS linked_bloom_events_count
       FROM water_quality_records wq
       LEFT JOIN sampling_events se ON wq.sampling_event_id = se.id
-      LEFT JOIN monitoring_stations s ON se.station_id = s.id
+      LEFT JOIN monitoring_stations s ON COALESCE(wq.station_id, se.station_id) = s.id
+      LEFT JOIN beaches b ON wq.beach_id = b.id
       WHERE 1=1
     `
     const params: unknown[] = []
@@ -102,6 +110,7 @@ export async function GET(request: Request) {
         OR LOWER(se.sampling_code) LIKE $${params.length}
         OR LOWER(s.name) LIKE $${params.length}
         OR LOWER(s.station_code) LIKE $${params.length}
+        OR LOWER(COALESCE(b.name, '')) LIKE $${params.length}
         OR LOWER(s.city) LIKE $${params.length}
         OR LOWER(s.province) LIKE $${params.length}
         OR LOWER(COALESCE(wq.notes, '')) LIKE $${params.length}
@@ -138,7 +147,12 @@ export async function GET(request: Request) {
       sql += ` AND wq.chlorophyll_a_ugl <= $${params.length}`
     }
 
-    sql += ` ORDER BY se.sampling_date DESC, wq.created_at DESC`
+    if (year.trim() && year !== "all") {
+      params.push(parseInt(year.trim(), 10))
+      sql += ` AND EXTRACT(YEAR FROM COALESCE(se.sampling_date, wq.created_at)) = $${params.length}`
+    }
+
+    sql += ` ORDER BY se.sampling_date DESC NULLS LAST, wq.created_at DESC`
 
     const result = await query(sql, params)
 
@@ -187,9 +201,13 @@ export async function POST(request: Request) {
     const {
       record_code,
       sampling_event_id,
+      station_id,
+      beach_id,
       data_source_type,
       source_title,
       source_url,
+      latitude,
+      longitude,
       temperature_c,
       salinity_psu,
       dissolved_oxygen_mgl,
@@ -227,13 +245,18 @@ export async function POST(request: Request) {
     }
 
     let resolvedSamplingId = null
+    let resolvedStationId = station_id?.trim() || null
+
     if (sampling_event_id && sampling_event_id.trim() !== "") {
-      const samplingCheck = await query(
-        `SELECT id FROM sampling_events WHERE id::text = $1 OR LOWER(sampling_code) = LOWER($1) LIMIT 1`,
+      const samplingCheck = await query<{ id: string; station_id: string }>(
+        `SELECT id, station_id FROM sampling_events WHERE id::text = $1 OR LOWER(sampling_code) = LOWER($1) LIMIT 1`,
         [sampling_event_id.trim()]
       )
       if (samplingCheck.rows.length > 0) {
         resolvedSamplingId = samplingCheck.rows[0].id
+        if (!resolvedStationId) {
+          resolvedStationId = samplingCheck.rows[0].station_id
+        }
       }
     }
 
@@ -241,9 +264,13 @@ export async function POST(request: Request) {
       INSERT INTO water_quality_records (
         record_code,
         sampling_event_id,
+        station_id,
+        beach_id,
         data_source_type,
         source_title,
         source_url,
+        latitude,
+        longitude,
         temperature_c,
         salinity_psu,
         dissolved_oxygen_mgl,
@@ -266,10 +293,11 @@ export async function POST(request: Request) {
       VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
         $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
-        $21, $22, $23
+        $21, $22, $23, $24, $25, $26, $27
       )
       RETURNING 
-        id, record_code, sampling_event_id, data_source_type, source_title, source_url,
+        id, record_code, sampling_event_id, station_id, beach_id,
+        data_source_type, source_title, source_url, latitude, longitude,
         temperature_c, salinity_psu, dissolved_oxygen_mgl, ph, chlorophyll_a_ugl,
         turbidity_ntu, current_speed_ms, depth_m,
         tds_gl, ph_mv, orp_mv, conductivity_ms_cm, sigma_t,
@@ -279,9 +307,13 @@ export async function POST(request: Request) {
     const insertRes = await query(insertSql, [
       record_code,
       resolvedSamplingId,
+      resolvedStationId,
+      beach_id?.trim() || null,
       data_source_type || "Hasil Sampling",
       source_title?.trim() || null,
       source_url?.trim() || null,
+      latitude ?? null,
+      longitude ?? null,
       temperature_c ?? null,
       salinity_psu ?? null,
       dissolved_oxygen_mgl ?? null,

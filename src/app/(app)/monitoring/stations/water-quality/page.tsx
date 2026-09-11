@@ -50,6 +50,10 @@ import {
   Layers,
   FlaskConical,
   Compass,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  MapPin,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-context"
@@ -58,14 +62,18 @@ interface WaterQualityRecord {
   id: string
   record_code: string
   sampling_event_id: string | null
+  station_id: string | null
+  beach_id?: string | null
+  beach_name?: string | null
   data_source_type?: string | null
   source_title?: string | null
   source_url?: string | null
+  latitude?: number | string | null
+  longitude?: number | string | null
   sampling_code: string
   sampling_date: string
   sampling_time: string | null
   weather_condition: string | null
-  station_id: string
   station_code: string
   station_name: string
   city: string
@@ -96,6 +104,8 @@ interface SamplingOption {
   id: string
   sampling_code: string
   sampling_date: string
+  station_id?: string
+  beach_id?: string | null
   station_name: string
   station_code: string
 }
@@ -104,6 +114,18 @@ interface StationOption {
   id: string
   station_code: string
   name: string
+  city?: string
+}
+
+interface BeachOption {
+  id: string
+  station_id: string
+  name: string
+  village?: string
+  subdistrict?: string
+  regency?: string
+  latitude?: number | string | null
+  longitude?: number | string | null
 }
 
 function formatIndoDate(dateStr: string | null | undefined): string {
@@ -137,9 +159,13 @@ function formatIndoDate(dateStr: string | null | undefined): string {
 const initialFormData = {
   record_code: "",
   sampling_event_id: "",
+  station_id: "",
+  beach_id: "",
   data_source_type: "Hasil Sampling",
   source_title: "",
   source_url: "",
+  latitude: "",
+  longitude: "",
   temperature_c: "",
   salinity_psu: "",
   dissolved_oxygen_mgl: "",
@@ -167,11 +193,16 @@ export default function WaterQualityPage() {
   const [loading, setLoading] = React.useState(true)
   const [searchQuery, setSearchQuery] = React.useState("")
   const [stationFilter, setStationFilter] = React.useState("all")
-  const [chlFilter, setChlFilter] = React.useState("all")
+  const [yearFilter, setYearFilter] = React.useState("all")
+
+  // Sorting State
+  const [sortField, setSortField] = React.useState<string | null>(null)
+  const [sortDirection, setSortDirection] = React.useState<"asc" | "desc">("asc")
 
   // Options
   const [samplingOptions, setSamplingOptions] = React.useState<SamplingOption[]>([])
   const [stationOptions, setStationOptions] = React.useState<StationOption[]>([])
+  const [beachOptions, setBeachOptions] = React.useState<BeachOption[]>([])
 
   // Form Dialog state
   const [isDialogOpen, setIsDialogOpen] = React.useState(false)
@@ -196,6 +227,7 @@ export default function WaterQualityPage() {
     errors: number
     failed: { row: number; reason: string }[]
   } | null>(null)
+  const [isUploadSuccessOpen, setIsUploadSuccessOpen] = React.useState(false)
 
   // Detail View Dialog
   const [isDetailOpen, setIsDetailOpen] = React.useState(false)
@@ -226,8 +258,7 @@ export default function WaterQualityPage() {
       const params = new URLSearchParams()
       if (searchQuery.trim()) params.append("q", searchQuery.trim())
       if (stationFilter !== "all") params.append("station_id", stationFilter)
-      if (chlFilter === "warning") params.append("min_chlorophyll", "20")
-      if (chlFilter === "bloom") params.append("min_chlorophyll", "40")
+      if (yearFilter !== "all") params.append("year", yearFilter)
 
       const res = await fetch(`/api/water-quality?${params.toString()}`)
       const data = await res.json()
@@ -243,7 +274,7 @@ export default function WaterQualityPage() {
     } finally {
       setLoading(false)
     }
-  }, [searchQuery, stationFilter, chlFilter])
+  }, [searchQuery, stationFilter, yearFilter])
 
   const fetchOptions = React.useCallback(async () => {
     try {
@@ -252,6 +283,7 @@ export default function WaterQualityPage() {
       if (data.success && data.data) {
         setSamplingOptions(data.data.sampling_events || [])
         setStationOptions(data.data.stations || [])
+        setBeachOptions(data.data.beaches || [])
       }
     } catch (err) {
       console.error("Error fetching options:", err)
@@ -269,16 +301,71 @@ export default function WaterQualityPage() {
     fetchOptions()
   }, [fetchOptions])
 
+  // Compute available years for the year filter
+  const availableYears = React.useMemo(() => {
+    const currentYear = new Date().getFullYear()
+    const years = new Set<number>([currentYear, currentYear - 1, currentYear - 2])
+    records.forEach((r) => {
+      if (r.sampling_date) {
+        const y = parseInt(r.sampling_date.split("-")[0], 10)
+        if (!isNaN(y)) years.add(y)
+      }
+    })
+    return Array.from(years).sort((a, b) => b - a)
+  }, [records])
+
+  // Sorting Handler
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"))
+    } else {
+      setSortField(field)
+      setSortDirection("asc")
+    }
+  }
+
+  const sortedRecords = React.useMemo(() => {
+    if (!sortField) return records
+    return [...records].sort((a, b) => {
+      let aVal: unknown = a[sortField as keyof WaterQualityRecord]
+      let bVal: unknown = b[sortField as keyof WaterQualityRecord]
+
+      if (sortField === "data_source_type") {
+        aVal = a.source_title || a.sampling_code || a.data_source_type || ""
+        bVal = b.source_title || b.sampling_code || b.data_source_type || ""
+      }
+
+      if (aVal === null || aVal === undefined || aVal === "") return 1
+      if (bVal === null || bVal === undefined || bVal === "") return -1
+
+      let comp = 0
+      const aNum = Number(aVal)
+      const bNum = Number(bVal)
+      if (!isNaN(aNum) && !isNaN(bNum) && typeof aVal !== "boolean" && typeof bVal !== "boolean") {
+        comp = aNum - bNum
+      } else {
+        comp = String(aVal).localeCompare(String(bVal), "id", { numeric: true })
+      }
+
+      return sortDirection === "asc" ? comp : -comp
+    })
+  }, [records, sortField, sortDirection])
+
   const handleOpenAdd = () => {
+    fetchOptions()
     setIsEditing(false)
     setEditingId(null)
     setFormData({
       ...initialFormData,
       record_code: `WQ-${Date.now().toString().slice(-4)}`,
-      sampling_event_id: samplingOptions[0]?.id || "",
+      sampling_event_id: "",
+      station_id: stationOptions[0]?.id || "",
+      beach_id: "",
       data_source_type: "Hasil Sampling",
       source_title: "",
       source_url: "",
+      latitude: "",
+      longitude: "",
     })
     setShowExtendedParams(false)
     setFormError(null)
@@ -286,14 +373,25 @@ export default function WaterQualityPage() {
   }
 
   const handleOpenEdit = (rec: WaterQualityRecord) => {
+    fetchOptions()
     setIsEditing(true)
     setEditingId(rec.id)
+    let srcType = rec.data_source_type || "Hasil Sampling"
+    if (srcType === "Jurnal / Publikasi") srcType = "Artikel Jurnal"
+    if (srcType !== "Hasil Sampling" && srcType !== "Artikel Jurnal" && srcType !== "Lainnya") {
+      srcType = "Lainnya"
+    }
+
     setFormData({
       record_code: rec.record_code,
       sampling_event_id: rec.sampling_event_id || "",
-      data_source_type: rec.data_source_type || (rec.sampling_event_id ? "Hasil Sampling" : "Jurnal / Publikasi"),
+      station_id: rec.station_id || "",
+      beach_id: rec.beach_id || "",
+      data_source_type: srcType,
       source_title: rec.source_title || "",
       source_url: rec.source_url || "",
+      latitude: rec.latitude !== null && rec.latitude !== undefined ? String(rec.latitude) : "",
+      longitude: rec.longitude !== null && rec.longitude !== undefined ? String(rec.longitude) : "",
       temperature_c: rec.temperature_c !== null ? String(rec.temperature_c) : "",
       salinity_psu: rec.salinity_psu !== null ? String(rec.salinity_psu) : "",
       dissolved_oxygen_mgl: rec.dissolved_oxygen_mgl !== null ? String(rec.dissolved_oxygen_mgl) : "",
@@ -332,9 +430,13 @@ export default function WaterQualityPage() {
       const payload = {
         record_code: formData.record_code.trim(),
         sampling_event_id: formData.data_source_type === "Hasil Sampling" ? (formData.sampling_event_id || null) : null,
+        station_id: formData.station_id || null,
+        beach_id: formData.beach_id || null,
         data_source_type: formData.data_source_type,
         source_title: formData.source_title.trim() || null,
         source_url: formData.source_url.trim() || null,
+        latitude: formData.latitude ? parseFloat(formData.latitude) : null,
+        longitude: formData.longitude ? parseFloat(formData.longitude) : null,
         temperature_c: formData.temperature_c ? parseFloat(formData.temperature_c) : null,
         salinity_psu: formData.salinity_psu ? parseFloat(formData.salinity_psu) : null,
         dissolved_oxygen_mgl: formData.dissolved_oxygen_mgl ? parseFloat(formData.dissolved_oxygen_mgl) : null,
@@ -376,13 +478,13 @@ export default function WaterQualityPage() {
       showBanner(
         "success",
         isEditing
-          ? "Data kualitas air berhasil diperbarui"
-          : "Data kualitas air baru berhasil ditambahkan"
+          ? `Data ${formData.record_code} berhasil diperbarui.`
+          : `Data ${formData.record_code} berhasil ditambahkan.`
       )
       fetchRecords()
     } catch (err) {
-      console.error("Error submitting water quality:", err)
-      setFormError("Terjadi kesalahan jaringan saat menyimpan data kualitas air")
+      console.error("Error submitting form:", err)
+      setFormError("Terjadi kesalahan koneksi saat menyimpan data.")
     } finally {
       setFormSubmitting(false)
     }
@@ -413,11 +515,11 @@ export default function WaterQualityPage() {
 
       setIsDeleteDialogOpen(false)
       setDeletingRecord(null)
-      showBanner("success", data.message || "Data berhasil dihapus")
+      showBanner("success", `Data ${deletingRecord.record_code} berhasil dihapus.`)
       fetchRecords()
     } catch (err) {
-      console.error("Error deleting water quality record:", err)
-      setDeleteError("Terjadi kesalahan jaringan saat menghapus data")
+      console.error("Error deleting record:", err)
+      setDeleteError("Terjadi kesalahan koneksi saat menghapus data.")
     } finally {
       setDeleteSubmitting(false)
     }
@@ -426,105 +528,107 @@ export default function WaterQualityPage() {
   const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!uploadFile) {
-      setUploadError("Silakan pilih berkas spreadsheet (.xlsx, .xls, .csv) terlebih dahulu")
+      setUploadError("Silakan pilih file spreadsheet yang akan diunggah.")
       return
     }
 
-    setUploadSubmitting(true)
     setUploadError(null)
     setUploadResult(null)
+    setUploadSubmitting(true)
 
     try {
-      const uploadData = new FormData()
-      uploadData.append("file", uploadFile)
+      const formDataUpload = new FormData()
+      formDataUpload.append("file", uploadFile)
       if (uploadTargetStation && uploadTargetStation !== "all") {
-        uploadData.append("station_id", uploadTargetStation)
+        formDataUpload.append("station_id", uploadTargetStation)
       }
 
       const res = await fetch("/api/water-quality/upload", {
         method: "POST",
-        body: uploadData,
+        body: formDataUpload,
       })
+
       const data = await res.json()
 
       if (!res.ok || !data.success) {
-        setUploadError(data.error || "Gagal memproses berkas spreadsheet")
-        if (data.failed_rows && data.failed_rows.length > 0) {
-          setUploadResult({
-            message: "Terdapat baris data yang gagal diproses",
-            total: 0,
-            inserted: 0,
-            updated: 0,
-            errors: data.failed_rows.length,
-            failed: data.failed_rows,
-          })
-        }
+        setUploadError(data.error || "Gagal memproses file upload.")
         setUploadSubmitting(false)
         return
       }
 
       setUploadResult({
-        message: data.message || "Data berhasil diimpor",
-        total: data.data?.total_rows_processed || 0,
-        inserted: data.data?.inserted_count || 0,
-        updated: data.data?.updated_count || 0,
-        errors: data.data?.error_count || 0,
-        failed: data.data?.failed_rows || [],
+        message: data.message || "Upload berhasil!",
+        total: data.data?.total || 0,
+        inserted: data.data?.inserted || 0,
+        updated: data.data?.updated || 0,
+        errors: data.data?.errors || 0,
+        failed: data.data?.failed || [],
       })
-      showBanner("success", data.message || "Unggahan berkas berhasil diproses")
+
+      // Tutup form modal upload dan bersihkan file
+      setIsUploadOpen(false)
+      setUploadFile(null)
+
+      // Tampilkan pop up sukses
+      setIsUploadSuccessOpen(true)
+
+      showBanner("success", data.message || "File berhasil diimpor!")
       fetchRecords()
     } catch (err) {
       console.error("Error uploading file:", err)
-      setUploadError("Terjadi kesalahan jaringan saat mengunggah berkas")
+      setUploadError("Terjadi kesalahan jaringan saat mengunggah file.")
     } finally {
       setUploadSubmitting(false)
     }
   }
 
   const handleDownloadTemplate = () => {
-    window.location.href = "/api/water-quality/template"
+    window.open("/api/water-quality/download-template", "_blank")
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="space-y-6">
       {/* Toast Banner */}
       {banner && (
         <div
           className={cn(
-            "p-3 text-sm rounded-lg flex items-center gap-2 border transition-all animate-in fade-in slide-in-from-top-2",
+            "p-4 rounded-xl border text-sm font-medium flex items-center justify-between shadow-sm animate-in fade-in slide-in-from-top-2 duration-200",
             banner.type === "success"
-              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-              : "bg-destructive/10 text-destructive border-destructive/20"
+              ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300"
+              : "bg-destructive/10 border-destructive/30 text-destructive"
           )}
         >
-          {banner.type === "success" ? (
-            <CheckCircle2 className="h-4 w-4 shrink-0" />
-          ) : (
-            <AlertCircle className="h-4 w-4 shrink-0" />
-          )}
-          <span>{banner.message}</span>
+          <div className="flex items-center gap-2">
+            {banner.type === "success" ? (
+              <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            ) : (
+              <AlertCircle className="h-5 w-5 shrink-0" />
+            )}
+            <span>{banner.message}</span>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setBanner(null)}
+            className="h-6 w-6 p-0 text-current hover:bg-transparent"
+          >
+            &times;
+          </Button>
         </div>
       )}
 
-      {/* Header & Breadcrumb */}
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Link href="/dashboard" className="hover:text-foreground transition-colors">
-            Dashboard
-          </Link>
-          <ChevronRight className="h-3 w-3" />
-          <Link href="/monitoring/stations" className="hover:text-foreground transition-colors">
-            Stasiun Monitoring
-          </Link>
-          <ChevronRight className="h-3 w-3" />
-          <span className="text-foreground font-semibold">Kualitas Air</span>
-        </div>
-
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Header Banner */}
+      <div className="rounded-2xl border bg-gradient-to-br from-card via-card to-primary/5 p-6 shadow-xs relative overflow-hidden">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-              <Droplets className="h-7 w-7 text-primary" />
-              Monitoring Parameter Kualitas Air
+            <div className="flex items-center gap-2 mb-1">
+              <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-[10px]">
+                Oseanografi & Parameter Kualitas Air
+              </Badge>
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
+              <Droplets className="h-6 w-6 text-primary" />
+              Monitoring Kualitas Air
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
               Data parameter oseanografi fisika, kimia, dan nutrien pesisir laut & stasiun pemantauan.
@@ -532,7 +636,6 @@ export default function WaterQualityPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Tombol Unduh Template Resmi */}
             <Button
               variant="outline"
               size="sm"
@@ -550,6 +653,7 @@ export default function WaterQualityPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => {
+                    fetchOptions()
                     setUploadFile(null)
                     setUploadError(null)
                     setUploadResult(null)
@@ -558,7 +662,7 @@ export default function WaterQualityPage() {
                   className="text-xs font-semibold shadow-xs"
                 >
                   <Upload className="mr-1.5 h-4 w-4 text-primary" />
-                  Upload Excel / CSV
+                  Upload
                 </Button>
 
                 <Button size="sm" onClick={handleOpenAdd} className="text-xs font-semibold shadow-xs">
@@ -576,36 +680,47 @@ export default function WaterQualityPage() {
         <div className="relative flex-1 w-full">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Cari kode WQ, kode sampling, stasiun, kota, atau catatan..."
+            placeholder="Cari kode WQ, kode sampling, stasiun, pantai, atau catatan..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9 h-9 text-xs"
           />
         </div>
 
-        <div className="flex items-center gap-2 w-full md:w-auto">
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+          {/* Filter Stasiun */}
           <Select value={stationFilter} onValueChange={(val) => setStationFilter(val || "all")}>
-            <SelectTrigger className="w-full md:w-[200px] h-9 text-xs font-semibold">
-              <SelectValue placeholder="Semua Stasiun" />
+            <SelectTrigger className="w-full sm:w-[260px] md:w-[280px] h-9 text-xs font-semibold">
+              <SelectValue placeholder="Semua Stasiun">
+                {stationFilter === "all"
+                  ? "Semua Stasiun"
+                  : (stationOptions.find((st) => st.id === stationFilter)?.name || "Semua Stasiun")}
+              </SelectValue>
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="z-50 min-w-[280px]">
               <SelectItem value="all">Semua Stasiun</SelectItem>
               {stationOptions.map((st) => (
                 <SelectItem key={st.id} value={st.id}>
-                  {st.station_code} - {st.name}
+                  {st.name}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
 
-          <Select value={chlFilter} onValueChange={(val) => setChlFilter(val || "all")}>
-            <SelectTrigger className="w-full md:w-[170px] h-9 text-xs font-semibold">
-              <SelectValue placeholder="Klorofil-a" />
+          {/* Filter Tahun */}
+          <Select value={yearFilter} onValueChange={(val) => setYearFilter(val || "all")}>
+            <SelectTrigger className="w-full sm:w-[150px] h-9 text-xs font-semibold">
+              <SelectValue placeholder="Semua Tahun">
+                {yearFilter === "all" ? "Semua Tahun" : `Tahun ${yearFilter}`}
+              </SelectValue>
             </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Semua Klorofil-a</SelectItem>
-              <SelectItem value="warning">Waspada (&ge; 20 µg/L)</SelectItem>
-              <SelectItem value="bloom">Blooming (&ge; 40 µg/L)</SelectItem>
+            <SelectContent className="z-50">
+              <SelectItem value="all">Semua Tahun</SelectItem>
+              {availableYears.map((yr) => (
+                <SelectItem key={yr} value={String(yr)}>
+                  Tahun {yr}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -616,15 +731,123 @@ export default function WaterQualityPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[120px]">Kode WQ</TableHead>
-              <TableHead>Sumber Data</TableHead>
-              <TableHead>Stasiun / Lokasi</TableHead>
-              <TableHead className="text-right">Suhu (°C)</TableHead>
-              <TableHead className="text-right">Sal (PSU)</TableHead>
-              <TableHead className="text-right">DO (mg/L)</TableHead>
-              <TableHead className="text-right">pH</TableHead>
-              <TableHead className="text-right">TDS (g/L)</TableHead>
-              <TableHead className="text-right">Klorofil-a</TableHead>
+              <TableHead className="w-[120px]">
+                <button
+                  onClick={() => handleSort("record_code")}
+                  className="flex items-center gap-1 font-bold text-foreground hover:text-primary transition-colors cursor-pointer text-xs"
+                >
+                  Kode WQ
+                  {sortField === "record_code" ? (
+                    sortDirection === "asc" ? <ArrowUp className="h-3 w-3 text-primary" /> : <ArrowDown className="h-3 w-3 text-primary" />
+                  ) : (
+                    <ArrowUpDown className="h-3 w-3 text-muted-foreground/60" />
+                  )}
+                </button>
+              </TableHead>
+              <TableHead>
+                <button
+                  onClick={() => handleSort("data_source_type")}
+                  className="flex items-center gap-1 font-bold text-foreground hover:text-primary transition-colors cursor-pointer text-xs"
+                >
+                  Sumber Data
+                  {sortField === "data_source_type" ? (
+                    sortDirection === "asc" ? <ArrowUp className="h-3 w-3 text-primary" /> : <ArrowDown className="h-3 w-3 text-primary" />
+                  ) : (
+                    <ArrowUpDown className="h-3 w-3 text-muted-foreground/60" />
+                  )}
+                </button>
+              </TableHead>
+              <TableHead>
+                <button
+                  onClick={() => handleSort("station_name")}
+                  className="flex items-center gap-1 font-bold text-foreground hover:text-primary transition-colors cursor-pointer text-xs"
+                >
+                  Stasiun / Pantai
+                  {sortField === "station_name" ? (
+                    sortDirection === "asc" ? <ArrowUp className="h-3 w-3 text-primary" /> : <ArrowDown className="h-3 w-3 text-primary" />
+                  ) : (
+                    <ArrowUpDown className="h-3 w-3 text-muted-foreground/60" />
+                  )}
+                </button>
+              </TableHead>
+              <TableHead className="text-right">
+                <button
+                  onClick={() => handleSort("temperature_c")}
+                  className="ml-auto flex items-center justify-end gap-1 font-bold text-foreground hover:text-primary transition-colors cursor-pointer text-xs"
+                >
+                  Suhu (°C)
+                  {sortField === "temperature_c" ? (
+                    sortDirection === "asc" ? <ArrowUp className="h-3 w-3 text-primary" /> : <ArrowDown className="h-3 w-3 text-primary" />
+                  ) : (
+                    <ArrowUpDown className="h-3 w-3 text-muted-foreground/60" />
+                  )}
+                </button>
+              </TableHead>
+              <TableHead className="text-right">
+                <button
+                  onClick={() => handleSort("salinity_psu")}
+                  className="ml-auto flex items-center justify-end gap-1 font-bold text-foreground hover:text-primary transition-colors cursor-pointer text-xs"
+                >
+                  Sal (PSU)
+                  {sortField === "salinity_psu" ? (
+                    sortDirection === "asc" ? <ArrowUp className="h-3 w-3 text-primary" /> : <ArrowDown className="h-3 w-3 text-primary" />
+                  ) : (
+                    <ArrowUpDown className="h-3 w-3 text-muted-foreground/60" />
+                  )}
+                </button>
+              </TableHead>
+              <TableHead className="text-right">
+                <button
+                  onClick={() => handleSort("dissolved_oxygen_mgl")}
+                  className="ml-auto flex items-center justify-end gap-1 font-bold text-foreground hover:text-primary transition-colors cursor-pointer text-xs"
+                >
+                  DO (mg/L)
+                  {sortField === "dissolved_oxygen_mgl" ? (
+                    sortDirection === "asc" ? <ArrowUp className="h-3 w-3 text-primary" /> : <ArrowDown className="h-3 w-3 text-primary" />
+                  ) : (
+                    <ArrowUpDown className="h-3 w-3 text-muted-foreground/60" />
+                  )}
+                </button>
+              </TableHead>
+              <TableHead className="text-right">
+                <button
+                  onClick={() => handleSort("ph")}
+                  className="ml-auto flex items-center justify-end gap-1 font-bold text-foreground hover:text-primary transition-colors cursor-pointer text-xs"
+                >
+                  pH
+                  {sortField === "ph" ? (
+                    sortDirection === "asc" ? <ArrowUp className="h-3 w-3 text-primary" /> : <ArrowDown className="h-3 w-3 text-primary" />
+                  ) : (
+                    <ArrowUpDown className="h-3 w-3 text-muted-foreground/60" />
+                  )}
+                </button>
+              </TableHead>
+              <TableHead className="text-right">
+                <button
+                  onClick={() => handleSort("tds_gl")}
+                  className="ml-auto flex items-center justify-end gap-1 font-bold text-foreground hover:text-primary transition-colors cursor-pointer text-xs"
+                >
+                  TDS (g/L)
+                  {sortField === "tds_gl" ? (
+                    sortDirection === "asc" ? <ArrowUp className="h-3 w-3 text-primary" /> : <ArrowDown className="h-3 w-3 text-primary" />
+                  ) : (
+                    <ArrowUpDown className="h-3 w-3 text-muted-foreground/60" />
+                  )}
+                </button>
+              </TableHead>
+              <TableHead className="text-right">
+                <button
+                  onClick={() => handleSort("chlorophyll_a_ugl")}
+                  className="ml-auto flex items-center justify-end gap-1 font-bold text-foreground hover:text-primary transition-colors cursor-pointer text-xs"
+                >
+                  Klorofil-a
+                  {sortField === "chlorophyll_a_ugl" ? (
+                    sortDirection === "asc" ? <ArrowUp className="h-3 w-3 text-primary" /> : <ArrowDown className="h-3 w-3 text-primary" />
+                  ) : (
+                    <ArrowUpDown className="h-3 w-3 text-muted-foreground/60" />
+                  )}
+                </button>
+              </TableHead>
               <TableHead className="text-right">Aksi</TableHead>
             </TableRow>
           </TableHeader>
@@ -638,14 +861,14 @@ export default function WaterQualityPage() {
                   </div>
                 </TableCell>
               </TableRow>
-            ) : records.length === 0 ? (
+            ) : sortedRecords.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={10} className="p-8">
                   <EmptyState
                     icon={Droplets}
                     title="Tidak ada data kualitas air"
                     description={
-                      searchQuery || stationFilter !== "all" || chlFilter !== "all"
+                      searchQuery || stationFilter !== "all"
                         ? "Tidak ditemukan data yang sesuai dengan kriteria pencarian / filter."
                         : "Belum ada rekaman parameter kualitas air dalam sistem."
                     }
@@ -655,9 +878,10 @@ export default function WaterQualityPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              records.map((r) => {
+              sortedRecords.map((r) => {
                 const chlVal = Number(r.chlorophyll_a_ugl) || 0
-                const isJournal = r.data_source_type === "Jurnal / Publikasi" || Boolean(r.source_title && !r.sampling_event_id)
+                const isJournal = r.data_source_type === "Artikel Jurnal" || r.data_source_type === "Jurnal / Publikasi"
+                const isOther = r.data_source_type === "Lainnya"
                 return (
                   <TableRow key={r.id} className="hover:bg-muted/40 transition-colors">
                     <TableCell className="font-mono font-bold text-primary">
@@ -670,7 +894,7 @@ export default function WaterQualityPage() {
                       {isJournal ? (
                         <div className="flex flex-col text-xs gap-0.5">
                           <Badge variant="outline" className="w-fit text-[10px] py-0 px-1.5 font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30">
-                            Jurnal / Publikasi
+                            Artikel Jurnal
                           </Badge>
                           <span className="font-medium text-foreground line-clamp-1 max-w-[220px]" title={r.source_title || "Artikel Jurnal Ilmiah"}>
                             {r.source_title || "Referensi Artikel Jurnal"}
@@ -686,6 +910,15 @@ export default function WaterQualityPage() {
                               Tautan Referensi / DOI &rarr;
                             </a>
                           )}
+                        </div>
+                      ) : isOther ? (
+                        <div className="flex flex-col text-xs gap-0.5">
+                          <Badge variant="outline" className="w-fit text-[10px] py-0 px-1.5 font-medium bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30">
+                            Lainnya
+                          </Badge>
+                          <span className="font-medium text-foreground line-clamp-1 max-w-[220px]" title={r.source_title || "Sumber Lainnya"}>
+                            {r.source_title || "Sumber Sekunder / Laporan"}
+                          </span>
                         </div>
                       ) : (
                         <div className="flex flex-col text-xs gap-0.5">
@@ -706,7 +939,13 @@ export default function WaterQualityPage() {
                       >
                         {r.station_name}
                       </Link>
-                      <span className="text-[11px] text-muted-foreground">{r.city}</span>
+                      {r.beach_name && r.beach_name !== "-" ? (
+                        <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium block">
+                          Pantai {r.beach_name}
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-muted-foreground block">{r.city}</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-right font-mono text-xs">
                       {r.temperature_c !== null ? `${Number(r.temperature_c).toFixed(1)}` : "-"}
@@ -799,11 +1038,11 @@ export default function WaterQualityPage() {
               </DialogTitle>
             </div>
             <DialogDescription className="text-xs text-muted-foreground">
-              {detailRecord?.data_source_type === "Jurnal / Publikasi" || detailRecord?.source_title ? (
-                <>Sumber: <strong className="text-foreground">Jurnal / Publikasi</strong> | Stasiun: <strong className="text-foreground">{detailRecord?.station_name}</strong> ({detailRecord?.city})</>
-              ) : (
-                <>Event Sampling: <strong className="text-foreground">{detailRecord?.sampling_code}</strong> | Stasiun: <strong className="text-foreground">{detailRecord?.station_name}</strong> ({detailRecord?.city})</>
+              Stasiun: <strong className="text-foreground">{detailRecord?.station_name}</strong>
+              {detailRecord?.beach_name && detailRecord?.beach_name !== "-" && (
+                <> &bull; Pantai: <strong className="text-foreground">{detailRecord?.beach_name}</strong></>
               )}
+              {detailRecord?.city && <> ({detailRecord?.city})</>}
             </DialogDescription>
           </DialogHeader>
 
@@ -814,13 +1053,13 @@ export default function WaterQualityPage() {
                 <div>
                   <span className="text-muted-foreground block text-[11px]">Tipe Sumber Data:</span>
                   <Badge variant="outline" className="mt-0.5 text-[10px] bg-primary/10 text-primary border-primary/20">
-                    {detailRecord.data_source_type || (detailRecord.sampling_event_id ? "Hasil Sampling" : "Jurnal / Publikasi")}
+                    {detailRecord.data_source_type || (detailRecord.sampling_event_id ? "Hasil Sampling" : "Artikel Jurnal")}
                   </Badge>
                 </div>
-                {detailRecord.data_source_type === "Jurnal / Publikasi" || detailRecord.source_title ? (
+                {detailRecord.data_source_type === "Artikel Jurnal" || detailRecord.data_source_type === "Jurnal / Publikasi" || detailRecord.data_source_type === "Lainnya" || detailRecord.source_title ? (
                   <div className="sm:col-span-2">
-                    <span className="text-muted-foreground block text-[11px]">Judul Referensi Jurnal:</span>
-                    <span className="font-semibold text-foreground block">{detailRecord.source_title || "Rujukan Artikel Jurnal"}</span>
+                    <span className="text-muted-foreground block text-[11px]">Judul / Rujukan Sumber:</span>
+                    <span className="font-semibold text-foreground block">{detailRecord.source_title || "Rujukan Sumber Data"}</span>
                     {detailRecord.source_url && (
                       <a href={detailRecord.source_url} target="_blank" rel="noreferrer" className="text-primary hover:underline font-mono text-[11px] block mt-0.5">
                         {detailRecord.source_url} &rarr;
@@ -840,6 +1079,17 @@ export default function WaterQualityPage() {
                   </>
                 )}
               </div>
+
+              {/* Info Koordinat & Lokasi */}
+              {(detailRecord.latitude !== null || detailRecord.longitude !== null) && (
+                <div className="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-500/5 border border-emerald-500/20 text-xs">
+                  <MapPin className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span className="text-muted-foreground">Koordinat Geografis:</span>
+                  <span className="font-mono font-bold text-foreground">
+                    Lat: {detailRecord.latitude ?? "-"}, Long: {detailRecord.longitude ?? "-"}
+                  </span>
+                </div>
+              )}
 
               {/* Parameter Fisika Standar */}
               <div>
@@ -983,14 +1233,14 @@ export default function WaterQualityPage() {
 
       {/* Modal Dialog Add/Edit Data */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
           <form onSubmit={handleFormSubmit}>
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
+              <DialogTitle className="flex items-center gap-2 font-bold text-base">
                 <Droplets className="h-5 w-5 text-primary" />
                 {isEditing ? "Edit Data Parameter Kualitas Air" : "Tambah Data Parameter Kualitas Air"}
               </DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="text-xs">
                 Lengkapi formulir parameter pengukuran oseanografi di bawah ini.
               </DialogDescription>
             </DialogHeader>
@@ -1003,89 +1253,220 @@ export default function WaterQualityPage() {
             )}
 
             <div className="space-y-4 py-4 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="record_code">Kode Rekord Kualitas Air *</Label>
-                  <Input
-                    id="record_code"
-                    placeholder="misal: WQ-104 atau WQ-2026-BARON"
-                    value={formData.record_code}
-                    onChange={(e) =>
-                      setFormData({ ...formData, record_code: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="data_source_type">Sumber Data *</Label>
-                  <Select
-                    value={formData.data_source_type}
-                    onValueChange={(val) =>
-                      setFormData({ ...formData, data_source_type: val || "Hasil Sampling" })
-                    }
-                  >
-                    <SelectTrigger id="data_source_type" className="text-xs">
-                      <SelectValue placeholder="Pilih Sumber Data..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Hasil Sampling">Hasil Sampling Lapangan</SelectItem>
-                      <SelectItem value="Jurnal / Publikasi">Referensi Journal / Publikasi Ilmiah</SelectItem>
-                      <SelectItem value="Laporan Lapangan">Laporan Dinas / Lembaga</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {/* Conditional Inputs based on Data Source */}
-              {formData.data_source_type === "Hasil Sampling" ? (
-                <div className="space-y-1.5">
-                  <Label htmlFor="sampling_event_id">Sampling Event Terkait *</Label>
-                  <Select
-                    value={formData.sampling_event_id}
-                    onValueChange={(val) =>
-                      setFormData({ ...formData, sampling_event_id: val || "" })
-                    }
-                  >
-                    <SelectTrigger id="sampling_event_id" className="text-xs">
-                      <SelectValue placeholder="Pilih Sampling Event..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {samplingOptions.map((opt) => (
-                        <SelectItem key={opt.id} value={opt.id}>
-                          {opt.sampling_code} &mdash; {opt.station_name} ({formatIndoDate(opt.sampling_date)})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-lg border bg-blue-500/5">
+              {/* Section 1: Identitas & Sumber Data */}
+              <div className="p-3 rounded-lg border bg-muted/20 space-y-3">
+                <h4 className="font-bold text-foreground flex items-center gap-1.5 text-xs">
+                  <FileSpreadsheet className="h-3.5 w-3.5 text-primary" />
+                  Identitas Rekord & Sumber Data
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label htmlFor="source_title">Judul Jurnal / Artikel Publikasi *</Label>
+                    <Label htmlFor="record_code" className="text-xs font-semibold">Kode Rekord Kualitas Air *</Label>
                     <Input
-                      id="source_title"
-                      placeholder="misal: Jurnal Oseanografi (Prasetyo et al., 2024)"
-                      value={formData.source_title}
+                      id="record_code"
+                      placeholder="misal: WQ-104 atau WQ-2026-BARON"
+                      value={formData.record_code}
                       onChange={(e) =>
-                        setFormData({ ...formData, source_title: e.target.value })
+                        setFormData({ ...formData, record_code: e.target.value })
                       }
+                      className="h-10 text-xs"
                       required
                     />
                   </div>
+
                   <div className="space-y-1.5">
-                    <Label htmlFor="source_url">DOI / URL Tautan Jurnal (Opsional)</Label>
-                    <Input
-                      id="source_url"
-                      placeholder="misal: https://doi.org/10.1016/j.jmarsys.2024.102345"
-                      value={formData.source_url}
-                      onChange={(e) =>
-                        setFormData({ ...formData, source_url: e.target.value })
+                    <Label htmlFor="data_source_type" className="text-xs font-semibold">Sumber Data *</Label>
+                    <Select
+                      value={formData.data_source_type}
+                      onValueChange={(val) =>
+                        setFormData({ ...formData, data_source_type: val || "Hasil Sampling" })
                       }
+                    >
+                      <SelectTrigger id="data_source_type" className="w-full h-10 text-xs font-medium px-3">
+                        <SelectValue placeholder="Pilih Sumber Data...">
+                          {formData.data_source_type}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent className="z-[70] max-h-60 overflow-y-auto min-w-[200px]">
+                        <SelectItem value="Hasil Sampling" className="text-xs py-2">Hasil Sampling</SelectItem>
+                        <SelectItem value="Artikel Jurnal" className="text-xs py-2">Artikel Jurnal</SelectItem>
+                        <SelectItem value="Lainnya" className="text-xs py-2">Lainnya</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Conditional Inputs based on Data Source */}
+                {formData.data_source_type === "Hasil Sampling" ? (
+                  <div className="space-y-1.5 pt-1">
+                    <Label htmlFor="sampling_event_id" className="text-xs font-semibold">Sampling Event Terkait *</Label>
+                    <Select
+                      value={formData.sampling_event_id || "none"}
+                      onValueChange={(val) => {
+                        const chosenVal = val === "none" ? "" : (val || "")
+                        const selEvent = samplingOptions.find(s => s.id === chosenVal)
+                        setFormData(prev => ({
+                          ...prev,
+                          sampling_event_id: chosenVal,
+                          station_id: selEvent?.station_id || prev.station_id,
+                          beach_id: prev.beach_id,
+                        }))
+                      }}
+                    >
+                      <SelectTrigger id="sampling_event_id" className="w-full h-10 text-xs font-medium px-3 text-left">
+                        <SelectValue placeholder="Pilih Sampling Event...">
+                          {(() => {
+                            const found = samplingOptions.find(s => s.id === formData.sampling_event_id)
+                            return found ? `${found.sampling_code} — ${found.station_name} (${formatIndoDate(found.sampling_date)})` : "-- Pilih Sampling Event --"
+                          })()}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent className="z-[70] max-h-64 overflow-y-auto w-[max(var(--anchor-width),460px)] min-w-full">
+                        <SelectItem value="none" className="text-xs py-2">-- Pilih Sampling Event --</SelectItem>
+                        {samplingOptions.map((opt) => (
+                          <SelectItem key={opt.id} value={opt.id} className="text-xs py-2">
+                            {opt.sampling_code} &mdash; {opt.station_name} ({formatIndoDate(opt.sampling_date)})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="source_title" className="text-xs font-semibold">Judul Referensi / Sumber *</Label>
+                      <Input
+                        id="source_title"
+                        placeholder="misal: Jurnal Oseanografi (Prasetyo et al., 2024)"
+                        value={formData.source_title}
+                        onChange={(e) =>
+                          setFormData({ ...formData, source_title: e.target.value })
+                        }
+                        className="h-10 text-xs"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="source_url" className="text-xs font-semibold">DOI / Tautan URL (Opsional)</Label>
+                      <Input
+                        id="source_url"
+                        placeholder="misal: https://doi.org/10.1016/j.jmarsys.2024.102345"
+                        value={formData.source_url}
+                        onChange={(e) =>
+                          setFormData({ ...formData, source_url: e.target.value })
+                        }
+                        className="h-10 text-xs font-mono"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Section 2: Stasiun & Lokasi Pantai */}
+              <div className="p-3.5 rounded-lg border bg-muted/20 space-y-3.5">
+                <h4 className="font-bold text-foreground flex items-center gap-1.5 text-xs">
+                  <MapPin className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                  Stasiun Pemantauan, Lokasi Pantai & Koordinat
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  <div className="space-y-1.5 min-w-0">
+                    <Label htmlFor="station_id" className="text-xs font-semibold">Stasiun Pemantauan *</Label>
+                    <Select
+                      value={formData.station_id || "none"}
+                      onValueChange={(val) => {
+                        const chosenVal = val === "none" ? "" : (val || "")
+                        setFormData(prev => ({
+                          ...prev,
+                          station_id: chosenVal,
+                          beach_id: prev.beach_id && beachOptions.some(b => b.id === prev.beach_id && b.station_id === chosenVal) ? prev.beach_id : "",
+                        }))
+                      }}
+                    >
+                      <SelectTrigger id="station_id" className="w-full h-10 text-xs font-medium px-3 text-left">
+                        <SelectValue placeholder="Pilih Stasiun...">
+                          {(() => {
+                            const found = stationOptions.find((st) => st.id === formData.station_id)
+                            return found ? `${found.name} (${found.city})` : "-- Pilih Stasiun --"
+                          })()}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent className="z-[70] max-h-64 overflow-y-auto w-[max(var(--anchor-width),360px)] min-w-[320px]">
+                        <SelectItem value="none" className="text-xs py-2">-- Pilih Stasiun --</SelectItem>
+                        {stationOptions.map((st) => (
+                          <SelectItem key={st.id} value={st.id} className="text-xs py-2">
+                            {st.name} ({st.city})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5 min-w-0">
+                    <Label htmlFor="beach_id" className="text-xs font-semibold">Lokasi Pantai (Opsional)</Label>
+                    <Select
+                      value={formData.beach_id || "none"}
+                      onValueChange={(val) => {
+                        const chosenVal = val === "none" ? "" : (val || "")
+                        const selBeach = beachOptions.find(b => b.id === chosenVal)
+                        setFormData(prev => ({
+                          ...prev,
+                          beach_id: chosenVal,
+                          station_id: selBeach?.station_id || prev.station_id,
+                          latitude: selBeach?.latitude !== null && selBeach?.latitude !== undefined ? String(selBeach.latitude) : prev.latitude,
+                          longitude: selBeach?.longitude !== null && selBeach?.longitude !== undefined ? String(selBeach.longitude) : prev.longitude,
+                        }))
+                      }}
+                    >
+                      <SelectTrigger id="beach_id" className="w-full h-10 text-xs font-medium px-3 text-left">
+                        <SelectValue placeholder="Pilih Pantai (Opsional)...">
+                          {(() => {
+                            const found = beachOptions.find((b) => b.id === formData.beach_id)
+                            return found ? `Pantai ${found.name}${found.regency ? ` (${found.regency})` : ""}` : "-- Tanpa Spesifik Pantai --"
+                          })()}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent className="z-[70] max-h-64 overflow-y-auto w-[max(var(--anchor-width),360px)] min-w-[320px]">
+                        <SelectItem value="none" className="text-xs py-2">-- Tanpa Spesifik Pantai --</SelectItem>
+                        {beachOptions
+                          .filter(b => !formData.station_id || b.station_id === formData.station_id)
+                          .map((b) => (
+                            <SelectItem key={b.id} value={b.id} className="text-xs py-2">
+                              Pantai {b.name}{b.regency ? ` (${b.regency})` : ""}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Fields khusus Koordinat */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="latitude" className="text-xs font-semibold">Latitude (Opsional)</Label>
+                    <Input
+                      id="latitude"
+                      type="number"
+                      step="0.000001"
+                      placeholder="misal: -8.131100"
+                      value={formData.latitude}
+                      onChange={(e) => setFormData({ ...formData, latitude: e.target.value })}
+                      className="h-9 text-xs font-mono"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="longitude" className="text-xs font-semibold">Longitude (Opsional)</Label>
+                    <Input
+                      id="longitude"
+                      type="number"
+                      step="0.000001"
+                      placeholder="misal: 110.548900"
+                      value={formData.longitude}
+                      onChange={(e) => setFormData({ ...formData, longitude: e.target.value })}
+                      className="h-9 text-xs font-mono"
                     />
                   </div>
                 </div>
-              )}
+              </div>
 
               {/* Parameter Fisika Dasar */}
               <div className="rounded-lg border p-3 bg-muted/20 space-y-3">
@@ -1408,9 +1789,13 @@ export default function WaterQualityPage() {
               </Label>
               <Select value={uploadTargetStation} onValueChange={(val) => setUploadTargetStation(val || "all")}>
                 <SelectTrigger id="upload_station" className="h-9 text-xs">
-                  <SelectValue placeholder="Pilih Stasiun..." />
+                  <SelectValue placeholder="Pilih Stasiun...">
+                    {uploadTargetStation === "all"
+                      ? "Otomatis / Default (ST-03 Pesisir Selatan Jawa)"
+                      : (stationOptions.find((st) => st.id === uploadTargetStation)?.name || "Pilih Stasiun...")}
+                  </SelectValue>
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="z-[70] max-h-60 overflow-y-auto">
                   <SelectItem value="all">Otomatis / Default (ST-03 Pesisir Selatan Jawa)</SelectItem>
                   {stationOptions.map((st) => (
                     <SelectItem key={st.id} value={st.id}>
@@ -1490,6 +1875,62 @@ export default function WaterQualityPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Pop Up Sukses Upload */}
+      <Dialog open={isUploadSuccessOpen} onOpenChange={setIsUploadSuccessOpen}>
+        <DialogContent className="sm:max-w-md text-center p-6">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 mb-2">
+            <CheckCircle2 className="h-8 w-8" />
+          </div>
+          <DialogHeader className="text-center sm:text-center">
+            <DialogTitle className="text-lg font-bold text-foreground">
+              Unggah Berkas Berhasil!
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              {uploadResult?.message || "Data kualitas air berhasil diproses dan disimpan ke sistem."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {uploadResult && (
+            <div className="my-3 p-3.5 rounded-xl bg-muted/40 border text-left text-xs space-y-2.5">
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="p-2 rounded-lg bg-background border shadow-2xs">
+                  <span className="text-[10px] text-muted-foreground block">Total Baris</span>
+                  <span className="text-base font-bold text-foreground font-mono">{uploadResult.total}</span>
+                </div>
+                <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 shadow-2xs">
+                  <span className="text-[10px] block opacity-80">Baru</span>
+                  <span className="text-base font-bold font-mono">+{uploadResult.inserted}</span>
+                </div>
+                <div className="p-2 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 shadow-2xs">
+                  <span className="text-[10px] block opacity-80">Diperbarui</span>
+                  <span className="text-base font-bold font-mono">{uploadResult.updated}</span>
+                </div>
+              </div>
+
+              {uploadResult.errors > 0 && (
+                <div className="p-2.5 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-[11px] space-y-1">
+                  <span className="font-semibold block">Catatan ({uploadResult.errors} baris dilewati/gagal):</span>
+                  <ul className="list-disc pl-4 max-h-24 overflow-y-auto space-y-0.5">
+                    {uploadResult.failed?.map((f, i) => (
+                      <li key={i}>Baris {f.row}: {f.reason}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="sm:justify-center mt-2">
+            <Button
+              onClick={() => setIsUploadSuccessOpen(false)}
+              className="w-full sm:w-auto min-w-[140px] font-semibold text-xs"
+            >
+              Selesai & Lihat Data
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
