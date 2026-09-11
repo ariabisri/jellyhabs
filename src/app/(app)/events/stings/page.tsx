@@ -1393,6 +1393,24 @@ export default function StingsPage() {
             </DialogDescription>
           </DialogHeader>
 
+          {/* Template Download Guide Banner */}
+          <div className="p-3 rounded-lg bg-primary/10 border border-primary/20 text-foreground flex items-start gap-2.5">
+            <Info className="size-4 text-primary shrink-0 mt-0.5" />
+            <div className="space-y-1.5 flex-1">
+              <p className="font-semibold text-xs text-primary">Panduan & Template Format Spreadsheet:</p>
+              <p className="text-muted-foreground text-[11px] leading-relaxed">
+                Gunakan template resmi untuk format laporan insiden korban sengatan per tahun (No, Tanggal, Bulan, Lokasi, Jumlah Korban, dll).
+              </p>
+              <a
+                href="/api/stings/template"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-xs"
+              >
+                <Download className="size-3.5" />
+                Unduh Template Excel Resmi (.xlsx)
+              </a>
+            </div>
+          </div>
+
           {importResult?.error && (
             <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/25 text-destructive text-xs flex items-center gap-2">
               <AlertTriangle className="size-4 shrink-0" />
