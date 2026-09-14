@@ -27,10 +27,18 @@ export async function GET() {
       ORDER BY se.sampling_date DESC, se.created_at DESC
     `)
 
+    const beaches = await query(`
+      SELECT id, station_id, name, village, subdistrict, regency, latitude, longitude
+      FROM beaches
+      WHERE status = 'aktif'
+      ORDER BY name ASC
+    `)
+
     return NextResponse.json({
       success: true,
       data: {
         stations: stations.rows,
+        beaches: beaches.rows,
         sampling_events: samplingEvents.rows,
       },
     })

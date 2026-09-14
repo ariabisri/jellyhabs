@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { pool, query } from "@/lib/db"
 import { getSession } from "@/lib/auth"
+import * as XLSX from "xlsx"
 
 interface CsvRowParsed {
   record_code: string
@@ -102,14 +103,26 @@ export async function POST(request: Request) {
 
       if (!file) {
         return NextResponse.json(
-          { success: false, error: "File CSV tidak ditemukan dalam permintaan" },
+          { success: false, error: "File spreadsheet (.xlsx, .xls, .csv) tidak ditemukan dalam permintaan" },
           { status: 400 }
         )
       }
 
       originalFileName = file.name
       fileSizeBytes = file.size
-      csvContent = await file.text()
+      const arrayBuffer = await file.arrayBuffer()
+      const buffer = Buffer.from(arrayBuffer)
+
+      if (originalFileName.toLowerCase().endsWith(".xlsx") || originalFileName.toLowerCase().endsWith(".xls")) {
+        try {
+          const wb = XLSX.read(buffer, { type: "buffer" })
+          csvContent = XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]])
+        } catch {
+          csvContent = buffer.toString("utf8")
+        }
+      } else {
+        csvContent = buffer.toString("utf8")
+      }
     } else {
       const body = await request.json()
       csvContent = body.csvText || ""
@@ -119,7 +132,7 @@ export async function POST(request: Request) {
 
     if (!csvContent.trim()) {
       return NextResponse.json(
-        { success: false, error: "Isi berkas CSV kosong" },
+        { success: false, error: "Isi berkas spreadsheet kosong atau tidak dapat dibaca" },
         { status: 400 }
       )
     }

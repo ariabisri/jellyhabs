@@ -591,20 +591,7 @@ export default function SpeciesPage() {
   }
 
   const handleDownloadTemplate = () => {
-    const templateContent =
-      "record_code,sampling_code,scientific_name,density_value,density_unit,toxicity_status,morphological_notes\r\n" +
-      "PLK-TMP-01,SMP-001,Pyrodinium bahamense,15000,sel/L,Beracun,Bentuk sel khas lempeng teka tebal\r\n" +
-      "PLK-TMP-02,SMP-002,Chaetoceros sp.,8500,sel/L,Tidak Beracun,Membentuk rantai panjang diatom\r\n" +
-      "JEL-TMP-03,SMP-003,Aurelia aurita,25,ind/m2,Iritasi Ringan,Dominasi medusa dewasa di permukaan"
-
-    const blob = new Blob(["\uFEFF" + templateContent], { type: "text/csv;charset=utf-8;" })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement("a")
-    link.setAttribute("href", url)
-    link.setAttribute("download", "template_plankton_jellyfish.csv")
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+    window.location.href = "/api/plankton/template"
   }
 
   return (
@@ -1457,26 +1444,26 @@ export default function SpeciesPage() {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <FileSpreadsheet className="h-5 w-5 text-primary" />
-                Unggah Dataset CSV Plankton & Ubur-ubur
+                Unggah Dataset Plankton & Ubur-ubur (Excel / CSV)
               </DialogTitle>
               <DialogDescription>
-                Unggah berkas CSV untuk mengimpor atau memperbarui data rekaman pemantauan secara massal.
+                Unggah berkas spreadsheet .xlsx, .xls, atau .csv untuk mengimpor atau memperbarui data rekaman pemantauan secara massal.
               </DialogDescription>
             </DialogHeader>
 
-            <div className="p-3 my-2 text-xs rounded-lg bg-primary/10 border border-primary/20 text-foreground flex items-start gap-2">
+            <div className="p-3 my-2 text-xs rounded-lg bg-primary/10 border border-primary/20 text-foreground flex items-start gap-2.5">
               <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-              <div>
-                <p className="font-semibold text-primary">Format Kolom CSV yang Didukung:</p>
-                <p className="mt-0.5 text-muted-foreground">
-                  <code className="text-[11px] font-mono font-bold">record_code, sampling_code, scientific_name, density_value, density_unit, toxicity_status, morphological_notes</code>
+              <div className="space-y-1.5 flex-1">
+                <p className="font-semibold text-primary">Format Spreadsheet yang Didukung:</p>
+                <p className="text-muted-foreground text-[11px] leading-relaxed">
+                  Gunakan template resmi untuk format data rekaman pemantauan plankton & ubur-ubur beserta daftar referensi spesies.
                 </p>
                 <button
                   type="button"
                   onClick={handleDownloadTemplate}
-                  className="mt-2 text-primary underline font-medium hover:text-primary/80 inline-flex items-center gap-1 cursor-pointer"
+                  className="mt-1 inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-xs cursor-pointer"
                 >
-                  <Download className="h-3 w-3" /> Unduh Contoh Template CSV
+                  <Download className="h-3.5 w-3.5" /> Unduh Template Excel Resmi (.xlsx)
                 </button>
               </div>
             </div>
@@ -1508,18 +1495,18 @@ export default function SpeciesPage() {
               <div className="flex flex-col items-center justify-center border-2 border-dashed border-border hover:border-primary/50 rounded-xl p-6 transition-colors bg-muted/20 text-center">
                 <Upload className="h-8 w-8 text-muted-foreground mb-2" />
                 <p className="text-sm font-medium text-foreground">
-                  {uploadFile ? uploadFile.name : "Pilih atau Seret Berkas CSV ke Sini"}
+                  {uploadFile ? uploadFile.name : "Pilih atau Seret Berkas Spreadsheet ke Sini"}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
                   {uploadFile
                     ? `${(uploadFile.size / 1024).toFixed(1)} KB`
-                    : "Maksimal ukuran berkas 10 MB (.csv)"}
+                    : "Mendukung berkas .xlsx, .xls, atau .csv (Maksimal 10 MB)"}
                 </p>
                 <label className="mt-3 inline-flex items-center justify-center text-xs font-semibold px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer shadow-xs">
                   Pilih Berkas
                   <input
                     type="file"
-                    accept=".csv"
+                    accept=".xlsx,.xls,.csv"
                     className="hidden"
                     onChange={(e) => {
                       if (e.target.files && e.target.files[0]) {

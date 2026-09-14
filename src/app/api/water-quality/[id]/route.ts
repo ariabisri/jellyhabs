@@ -7,12 +7,16 @@ const updateWaterQualitySchema = z.object({
   record_code: z
     .string()
     .min(2, "Kode rekord minimal 2 karakter")
-    .max(20, "Kode rekord maksimal 20 karakter")
+    .max(50, "Kode rekord maksimal 50 karakter")
     .trim(),
-  sampling_event_id: z
-    .string()
-    .min(1, "Sampling event harus dipilih")
-    .trim(),
+  sampling_event_id: z.string().nullable().optional(),
+  station_id: z.string().nullable().optional(),
+  beach_id: z.string().nullable().optional(),
+  data_source_type: z.string().optional().default("Hasil Sampling"),
+  source_title: z.string().nullable().optional(),
+  source_url: z.string().nullable().optional(),
+  latitude: z.number().nullable().optional(),
+  longitude: z.number().nullable().optional(),
   temperature_c: z.number().nullable().optional(),
   salinity_psu: z.number().nullable().optional(),
   dissolved_oxygen_mgl: z.number().nullable().optional(),
@@ -21,6 +25,15 @@ const updateWaterQualitySchema = z.object({
   turbidity_ntu: z.number().nullable().optional(),
   current_speed_ms: z.number().nullable().optional(),
   depth_m: z.number().nullable().optional(),
+  tds_gl: z.number().nullable().optional(),
+  ph_mv: z.number().nullable().optional(),
+  orp_mv: z.number().nullable().optional(),
+  conductivity_ms_cm: z.number().nullable().optional(),
+  sigma_t: z.number().nullable().optional(),
+  nitrate_no3_mgl: z.number().nullable().optional(),
+  nitrite_no2_mgl: z.number().nullable().optional(),
+  phosphorus_p_mgl: z.number().nullable().optional(),
+  phosphate_po4_mgl: z.number().nullable().optional(),
   notes: z.string().optional().default(""),
 })
 
@@ -37,19 +50,24 @@ export async function GET(
         wq.id,
         wq.record_code,
         wq.sampling_event_id,
-        se.sampling_code,
-        TO_CHAR(se.sampling_date, 'YYYY-MM-DD') AS sampling_date,
+        COALESCE(wq.station_id, se.station_id) AS station_id,
+        wq.beach_id,
+        b.name AS beach_name,
+        wq.data_source_type,
+        wq.source_title,
+        wq.source_url,
+        COALESCE(wq.latitude, b.latitude, s.latitude) AS latitude,
+        COALESCE(wq.longitude, b.longitude, s.longitude) AS longitude,
+        COALESCE(se.sampling_code, '-') AS sampling_code,
+        TO_CHAR(COALESCE(se.sampling_date, wq.created_at::date), 'YYYY-MM-DD') AS sampling_date,
         TO_CHAR(se.sampling_time, 'HH24:MI') AS sampling_time,
         se.weather_condition,
         se.field_notes AS sampling_notes,
         u.full_name AS sampling_recorder_name,
-        s.id AS station_id,
-        s.station_code,
-        s.name AS station_name,
-        s.city,
-        s.province,
-        s.latitude,
-        s.longitude,
+        COALESCE(s.station_code, 'ST-03') AS station_code,
+        COALESCE(s.name, 'Stasiun Pengamatan') AS station_name,
+        COALESCE(s.city, 'Pesisir') AS city,
+        COALESCE(s.province, '-') AS province,
         wq.temperature_c,
         wq.salinity_psu,
         wq.dissolved_oxygen_mgl,
@@ -58,6 +76,15 @@ export async function GET(
         wq.turbidity_ntu,
         wq.current_speed_ms,
         wq.depth_m,
+        wq.tds_gl,
+        wq.ph_mv,
+        wq.orp_mv,
+        wq.conductivity_ms_cm,
+        wq.sigma_t,
+        wq.nitrate_no3_mgl,
+        wq.nitrite_no2_mgl,
+        wq.phosphorus_p_mgl,
+        wq.phosphate_po4_mgl,
         wq.notes,
         wq.created_at,
         wq.updated_at,
@@ -82,9 +109,10 @@ export async function GET(
           '[]'::json
         ) AS linked_bloom_events
       FROM water_quality_records wq
-      JOIN sampling_events se ON wq.sampling_event_id = se.id
+      LEFT JOIN sampling_events se ON wq.sampling_event_id = se.id
       LEFT JOIN users u ON se.recorded_by = u.id
-      JOIN monitoring_stations s ON se.station_id = s.id
+      LEFT JOIN monitoring_stations s ON COALESCE(wq.station_id, se.station_id) = s.id
+      LEFT JOIN beaches b ON wq.beach_id = b.id
       WHERE wq.id::text = $1 OR LOWER(wq.record_code) = LOWER($1)
       LIMIT 1
     `
@@ -151,6 +179,13 @@ export async function PUT(
     const {
       record_code,
       sampling_event_id,
+      station_id,
+      beach_id,
+      data_source_type,
+      source_title,
+      source_url,
+      latitude,
+      longitude,
       temperature_c,
       salinity_psu,
       dissolved_oxygen_mgl,
@@ -159,6 +194,15 @@ export async function PUT(
       turbidity_ntu,
       current_speed_ms,
       depth_m,
+      tds_gl,
+      ph_mv,
+      orp_mv,
+      conductivity_ms_cm,
+      sigma_t,
+      nitrate_no3_mgl,
+      nitrite_no2_mgl,
+      phosphorus_p_mgl,
+      phosphate_po4_mgl,
       notes,
     } = result.data
 
@@ -196,47 +240,73 @@ export async function PUT(
       )
     }
 
-    // Verify sampling event
-    const samplingCheck = await query(
-      `SELECT id FROM sampling_events WHERE id::text = $1 OR LOWER(sampling_code) = LOWER($1) LIMIT 1`,
-      [sampling_event_id]
-    )
+    let resolvedSamplingId = null
+    let resolvedStationId = station_id?.trim() || null
 
-    if (samplingCheck.rows.length === 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Sampling event yang dipilih tidak ditemukan",
-        },
-        { status: 400 }
+    if (sampling_event_id && sampling_event_id.trim() !== "") {
+      const samplingCheck = await query<{ id: string; station_id: string }>(
+        `SELECT id, station_id FROM sampling_events WHERE id::text = $1 OR LOWER(sampling_code) = LOWER($1) LIMIT 1`,
+        [sampling_event_id.trim()]
       )
+      if (samplingCheck.rows.length > 0) {
+        resolvedSamplingId = samplingCheck.rows[0].id
+        if (!resolvedStationId) {
+          resolvedStationId = samplingCheck.rows[0].station_id
+        }
+      }
     }
-
-    const resolvedSamplingId = samplingCheck.rows[0].id
 
     const updateSql = `
       UPDATE water_quality_records
       SET 
         record_code = $1,
         sampling_event_id = $2,
-        temperature_c = $3,
-        salinity_psu = $4,
-        dissolved_oxygen_mgl = $5,
-        ph = $6,
-        chlorophyll_a_ugl = $7,
-        turbidity_ntu = $8,
-        current_speed_ms = $9,
-        depth_m = $10,
-        notes = $11
-      WHERE id = $12
+        station_id = $3,
+        beach_id = $4,
+        data_source_type = $5,
+        source_title = $6,
+        source_url = $7,
+        latitude = $8,
+        longitude = $9,
+        temperature_c = $10,
+        salinity_psu = $11,
+        dissolved_oxygen_mgl = $12,
+        ph = $13,
+        chlorophyll_a_ugl = $14,
+        turbidity_ntu = $15,
+        current_speed_ms = $16,
+        depth_m = $17,
+        tds_gl = $18,
+        ph_mv = $19,
+        orp_mv = $20,
+        conductivity_ms_cm = $21,
+        sigma_t = $22,
+        nitrate_no3_mgl = $23,
+        nitrite_no2_mgl = $24,
+        phosphorus_p_mgl = $25,
+        phosphate_po4_mgl = $26,
+        notes = $27,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $28
       RETURNING 
-        id, record_code, sampling_event_id, 
+        id, record_code, sampling_event_id, station_id, beach_id,
+        data_source_type, source_title, source_url, latitude, longitude,
         temperature_c, salinity_psu, dissolved_oxygen_mgl, ph, chlorophyll_a_ugl,
-        turbidity_ntu, current_speed_ms, depth_m, notes, created_at, updated_at
+        turbidity_ntu, current_speed_ms, depth_m,
+        tds_gl, ph_mv, orp_mv, conductivity_ms_cm, sigma_t,
+        nitrate_no3_mgl, nitrite_no2_mgl, phosphorus_p_mgl, phosphate_po4_mgl,
+        notes, created_at, updated_at
     `
     const updateRes = await query(updateSql, [
       record_code,
       resolvedSamplingId,
+      resolvedStationId,
+      beach_id?.trim() || null,
+      data_source_type || "Hasil Sampling",
+      source_title?.trim() || null,
+      source_url?.trim() || null,
+      latitude ?? null,
+      longitude ?? null,
       temperature_c ?? null,
       salinity_psu ?? null,
       dissolved_oxygen_mgl ?? null,
@@ -245,6 +315,15 @@ export async function PUT(
       turbidity_ntu ?? null,
       current_speed_ms ?? null,
       depth_m ?? null,
+      tds_gl ?? null,
+      ph_mv ?? null,
+      orp_mv ?? null,
+      conductivity_ms_cm ?? null,
+      sigma_t ?? null,
+      nitrate_no3_mgl ?? null,
+      nitrite_no2_mgl ?? null,
+      phosphorus_p_mgl ?? null,
+      phosphate_po4_mgl ?? null,
       notes?.trim() || null,
       targetId,
     ])
