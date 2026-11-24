@@ -25,6 +25,9 @@ import {
   ChevronRight,
   Info,
   Anchor,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -161,6 +164,8 @@ export default function StingsPage() {
   const [page, setPage] = React.useState(1)
   const [totalPages, setTotalPages] = React.useState(1)
   const [totalCount, setTotalCount] = React.useState(0)
+  const [sortBy, setSortBy] = React.useState<string>("incident_date")
+  const [sortOrder, setSortOrder] = React.useState<"asc" | "desc">("desc")
 
   // Dialog States
   const [isAddOpen, setIsAddOpen] = React.useState(false)
@@ -262,6 +267,8 @@ export default function StingsPage() {
       if (genderFilter !== "all") params.append("gender", genderFilter)
       if (stationFilter !== "all") params.append("station_id", stationFilter)
       if (search.trim()) params.append("q", search.trim())
+      params.append("sort_by", sortBy)
+      params.append("sort_order", sortOrder)
 
       const res = await fetch(`/api/stings?${params.toString()}`)
       const json = await res.json()
@@ -275,7 +282,7 @@ export default function StingsPage() {
     } finally {
       setLoading(false)
     }
-  }, [page, yearFilter, monthFilter, locationFilter, genderFilter, stationFilter, search])
+  }, [page, yearFilter, monthFilter, locationFilter, genderFilter, stationFilter, search, sortBy, sortOrder])
 
   React.useEffect(() => {
     if (typeof window !== "undefined") {
@@ -298,7 +305,7 @@ export default function StingsPage() {
 
   React.useEffect(() => {
     setSelectedIds([])
-  }, [page, yearFilter, monthFilter, locationFilter, genderFilter, stationFilter, search])
+  }, [page, yearFilter, monthFilter, locationFilter, genderFilter, stationFilter, search, sortBy, sortOrder])
 
   React.useEffect(() => {
     fetchRecords()
@@ -456,6 +463,28 @@ export default function StingsPage() {
       pages.push(1, "...", page - 1, page, page + 1, "...", totalPages)
     }
     return pages
+  }
+
+  // Column sorting handlers
+  const handleSort = (column: string) => {
+    if (sortBy === column) {
+      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"))
+    } else {
+      setSortBy(column)
+      setSortOrder("asc")
+    }
+    setPage(1)
+  }
+
+  const renderSortArrow = (column: string) => {
+    if (sortBy !== column) {
+      return <ArrowUpDown className="size-3 text-muted-foreground/40 group-hover:text-muted-foreground inline shrink-0" />
+    }
+    return sortOrder === "asc" ? (
+      <ArrowUp className="size-3 text-primary inline shrink-0 font-bold" />
+    ) : (
+      <ArrowDown className="size-3 text-primary inline shrink-0 font-bold" />
+    )
   }
 
   // Handle Import Submit
@@ -876,17 +905,79 @@ export default function StingsPage() {
             <TableHeader>
               <TableRow className="border-border/60 bg-muted/40 hover:bg-muted/40">
                 <TableHead className="w-12 text-center text-xs font-semibold">No</TableHead>
-                <TableHead className="text-xs font-semibold">Tanggal & Waktu</TableHead>
-                <TableHead className="text-xs font-semibold">Lokasi Pantai & Stasiun</TableHead>
-                <TableHead className="text-xs font-semibold text-center">Korban</TableHead>
-                <TableHead className="text-xs font-semibold">Identitas (Nama / Usia)</TableHead>
-                <TableHead className="text-xs font-semibold">Gender</TableHead>
-                <TableHead className="text-xs font-semibold">Gejala & Penanganan</TableHead>
-                <TableHead className="text-xs font-semibold">Kaitan Event</TableHead>
+                <TableHead
+                  className="text-xs font-semibold cursor-pointer select-none group hover:text-foreground transition-colors"
+                  onClick={() => handleSort("incident_date")}
+                  title="Urutkan Tanggal"
+                >
+                  <div className="flex items-center gap-1">
+                    <span>Tanggal & Waktu</span>
+                    {renderSortArrow("incident_date")}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="text-xs font-semibold cursor-pointer select-none group hover:text-foreground transition-colors"
+                  onClick={() => handleSort("location_name")}
+                  title="Urutkan Lokasi"
+                >
+                  <div className="flex items-center gap-1">
+                    <span>Lokasi Pantai & Stasiun</span>
+                    {renderSortArrow("location_name")}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="text-xs font-semibold text-center cursor-pointer select-none group hover:text-foreground transition-colors"
+                  onClick={() => handleSort("victim_count")}
+                  title="Urutkan Jumlah Korban"
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    <span>Korban</span>
+                    {renderSortArrow("victim_count")}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="text-xs font-semibold cursor-pointer select-none group hover:text-foreground transition-colors"
+                  onClick={() => handleSort("victim_name")}
+                  title="Urutkan Identitas"
+                >
+                  <div className="flex items-center gap-1">
+                    <span>Identitas (Nama / Usia)</span>
+                    {renderSortArrow("victim_name")}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="text-xs font-semibold cursor-pointer select-none group hover:text-foreground transition-colors"
+                  onClick={() => handleSort("victim_gender")}
+                  title="Urutkan Gender"
+                >
+                  <div className="flex items-center gap-1">
+                    <span>Gender</span>
+                    {renderSortArrow("victim_gender")}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="text-xs font-semibold cursor-pointer select-none group hover:text-foreground transition-colors"
+                  onClick={() => handleSort("severity_level")}
+                  title="Urutkan Gejala"
+                >
+                  <div className="flex items-center gap-1">
+                    <span>Gejala & Penanganan</span>
+                    {renderSortArrow("severity_level")}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="text-xs font-semibold cursor-pointer select-none group hover:text-foreground transition-colors"
+                  onClick={() => handleSort("bloom_event_code")}
+                  title="Urutkan Kaitan Event"
+                >
+                  <div className="flex items-center gap-1">
+                    <span>Kaitan Event</span>
+                    {renderSortArrow("bloom_event_code")}
+                  </div>
+                </TableHead>
                 {authenticated && (
                   <TableHead className="text-xs font-semibold text-right w-28">
                     <div className="flex items-center justify-end gap-2">
-                      <span>Aksi</span>
                       <input
                         type="checkbox"
                         checked={isAllCurrentSelected}
@@ -894,6 +985,7 @@ export default function StingsPage() {
                         title="Pilih Semua di Halaman Ini"
                         className="rounded border-border size-4 accent-primary cursor-pointer transition-all"
                       />
+                      <span className="w-[62px] text-center">Aksi</span>
                     </div>
                   </TableHead>
                 )}

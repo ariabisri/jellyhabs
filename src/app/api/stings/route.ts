@@ -17,6 +17,21 @@ export async function GET(request: Request) {
     const bloomEventId = searchParams.get("bloom_event_id")
     const stationId = searchParams.get("station_id")
     const q = searchParams.get("q")
+    const sortBy = searchParams.get("sort_by") || "incident_date"
+    const sortOrder = (searchParams.get("sort_order") || "desc").toLowerCase() === "asc" ? "ASC" : "DESC"
+
+    const sortColumns: Record<string, string> = {
+      incident_date: "sr.incident_date",
+      location_name: "sr.location_name",
+      victim_count: "sr.victim_count",
+      victim_name: "sr.victim_name",
+      victim_gender: "sr.victim_gender",
+      severity_level: "sr.severity_level",
+      bloom_event_code: "be.event_code",
+    }
+
+    const orderColumn = sortColumns[sortBy] || "sr.incident_date"
+    const orderClause = `ORDER BY ${orderColumn} ${sortOrder}, sr.created_at DESC`
 
     const conditions: string[] = []
     const params: unknown[] = []
@@ -102,7 +117,7 @@ export async function GET(request: Request) {
       LEFT JOIN bloom_events be ON sr.bloom_event_id = be.id
       LEFT JOIN users u ON sr.reported_by = u.id
       ${whereClause}
-      ORDER BY sr.incident_date DESC, sr.created_at DESC
+      ${orderClause}
       LIMIT $${params.length + 1} OFFSET $${params.length + 2}
     `
 
