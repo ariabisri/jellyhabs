@@ -17,6 +17,21 @@ export async function GET(request: Request) {
     const bloomEventId = searchParams.get("bloom_event_id")
     const stationId = searchParams.get("station_id")
     const q = searchParams.get("q")
+    const sortBy = searchParams.get("sort_by") || "incident_date"
+    const sortOrder = (searchParams.get("sort_order") || "desc").toLowerCase() === "asc" ? "ASC" : "DESC"
+
+    const sortColumns: Record<string, string> = {
+      incident_date: "sr.incident_date",
+      location_name: "sr.location_name",
+      victim_count: "sr.victim_count",
+      victim_name: "sr.victim_name",
+      victim_gender: "sr.victim_gender",
+      severity_level: "sr.severity_level",
+      bloom_event_code: "be.event_code",
+    }
+
+    const orderColumn = sortColumns[sortBy] || "sr.incident_date"
+    const orderClause = `ORDER BY ${orderColumn} ${sortOrder}, sr.created_at DESC`
 
     const conditions: string[] = []
     const params: unknown[] = []
@@ -102,7 +117,7 @@ export async function GET(request: Request) {
       LEFT JOIN bloom_events be ON sr.bloom_event_id = be.id
       LEFT JOIN users u ON sr.reported_by = u.id
       ${whereClause}
-      ORDER BY sr.incident_date DESC, sr.created_at DESC
+      ${orderClause}
       LIMIT $${params.length + 1} OFFSET $${params.length + 2}
     `
 
@@ -243,6 +258,47 @@ export async function POST(request: Request) {
     console.error("POST /api/stings Error:", error)
     return NextResponse.json(
       { success: false, error: "Gagal mencatat laporan sengatan ubur-ubur" },
+      { status: 500 }
+    )
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const session = await getSession()
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: "Autentikasi diperlukan untuk menghapus data" },
+        { status: 401 }
+      )
+    }
+
+    const body = await request.json()
+    const ids: string[] = body.ids
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return NextResponse.json(
+        { success: false, error: "Daftar ID data tidak valid atau kosong" },
+        { status: 400 }
+      )
+    }
+
+    const deleteSql = `
+      DELETE FROM sting_records
+      WHERE id = ANY($1::uuid[])
+      RETURNING id
+    `
+    const result = await query(deleteSql, [ids])
+
+    return NextResponse.json({
+      success: true,
+      message: `${result.rowCount} data insiden sengatan berhasil dihapus`,
+      deletedCount: result.rowCount,
+    })
+  } catch (error) {
+    console.error("DELETE /api/stings Error:", error)
+    return NextResponse.json(
+      { success: false, error: "Gagal menghapus beberapa data insiden sengatan" },
       { status: 500 }
     )
   }

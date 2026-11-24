@@ -25,6 +25,9 @@ import {
   ChevronRight,
   Info,
   Anchor,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -161,6 +164,8 @@ export default function StingsPage() {
   const [page, setPage] = React.useState(1)
   const [totalPages, setTotalPages] = React.useState(1)
   const [totalCount, setTotalCount] = React.useState(0)
+  const [sortBy, setSortBy] = React.useState<string>("incident_date")
+  const [sortOrder, setSortOrder] = React.useState<"asc" | "desc">("desc")
 
   // Dialog States
   const [isAddOpen, setIsAddOpen] = React.useState(false)
@@ -168,6 +173,11 @@ export default function StingsPage() {
   const [isImportOpen, setIsImportOpen] = React.useState(false)
   const [isDeleteOpen, setIsDeleteOpen] = React.useState(false)
   const [selectedRecord, setSelectedRecord] = React.useState<StingRecord | null>(null)
+
+  // Multiple Selection & Bulk Delete State
+  const [selectedIds, setSelectedIds] = React.useState<string[]>([])
+  const [isBulkDeleteOpen, setIsBulkDeleteOpen] = React.useState(false)
+  const [bulkDeleteSubmitting, setBulkDeleteSubmitting] = React.useState(false)
 
   // Form State
   const [formData, setFormData] = React.useState({
@@ -257,6 +267,8 @@ export default function StingsPage() {
       if (genderFilter !== "all") params.append("gender", genderFilter)
       if (stationFilter !== "all") params.append("station_id", stationFilter)
       if (search.trim()) params.append("q", search.trim())
+      params.append("sort_by", sortBy)
+      params.append("sort_order", sortOrder)
 
       const res = await fetch(`/api/stings?${params.toString()}`)
       const json = await res.json()
@@ -270,7 +282,7 @@ export default function StingsPage() {
     } finally {
       setLoading(false)
     }
-  }, [page, yearFilter, monthFilter, locationFilter, genderFilter, stationFilter, search])
+  }, [page, yearFilter, monthFilter, locationFilter, genderFilter, stationFilter, search, sortBy, sortOrder])
 
   React.useEffect(() => {
     if (typeof window !== "undefined") {
@@ -290,6 +302,10 @@ export default function StingsPage() {
   React.useEffect(() => {
     fetchStats()
   }, [fetchStats])
+
+  React.useEffect(() => {
+    setSelectedIds([])
+  }, [page, yearFilter, monthFilter, locationFilter, genderFilter, stationFilter, search, sortBy, sortOrder])
 
   React.useEffect(() => {
     fetchRecords()
@@ -386,6 +402,89 @@ export default function StingsPage() {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  // Selection & Bulk Delete Handlers
+  const isAllCurrentSelected =
+    records.length > 0 && records.every((r) => selectedIds.includes(r.id))
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    )
+  }
+
+  const handleToggleSelectAll = () => {
+    if (isAllCurrentSelected) {
+      const currentIds = new Set(records.map((r) => r.id))
+      setSelectedIds((prev) => prev.filter((id) => !currentIds.has(id)))
+    } else {
+      const newIds = Array.from(new Set([...selectedIds, ...records.map((r) => r.id)]))
+      setSelectedIds(newIds)
+    }
+  }
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return
+    setBulkDeleteSubmitting(true)
+    try {
+      const res = await fetch("/api/stings", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: selectedIds }),
+      })
+      const json = await res.json()
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || "Gagal menghapus beberapa data")
+      }
+      setIsBulkDeleteOpen(false)
+      setSelectedIds([])
+      fetchRecords()
+      fetchStats()
+    } catch (err: any) {
+      alert(err.message)
+    } finally {
+      setBulkDeleteSubmitting(false)
+    }
+  }
+
+  // Clickable page numbers with smart ellipsis
+  const getPageNumbers = () => {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1)
+    }
+
+    const pages: (number | string)[] = []
+    if (page <= 3) {
+      pages.push(1, 2, 3, 4, "...", totalPages)
+    } else if (page >= totalPages - 2) {
+      pages.push(1, "...", totalPages - 3, totalPages - 2, totalPages - 1, totalPages)
+    } else {
+      pages.push(1, "...", page - 1, page, page + 1, "...", totalPages)
+    }
+    return pages
+  }
+
+  // Column sorting handlers
+  const handleSort = (column: string) => {
+    if (sortBy === column) {
+      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"))
+    } else {
+      setSortBy(column)
+      setSortOrder("asc")
+    }
+    setPage(1)
+  }
+
+  const renderSortArrow = (column: string) => {
+    if (sortBy !== column) {
+      return <ArrowUpDown className="size-3 text-muted-foreground/40 group-hover:text-muted-foreground inline shrink-0" />
+    }
+    return sortOrder === "asc" ? (
+      <ArrowUp className="size-3 text-primary inline shrink-0 font-bold" />
+    ) : (
+      <ArrowDown className="size-3 text-primary inline shrink-0 font-bold" />
+    )
   }
 
   // Handle Import Submit
@@ -772,19 +871,124 @@ export default function StingsPage() {
 
       {/* Main Data Table */}
       <Card className="border-border bg-card/60 backdrop-blur shadow-sm overflow-hidden">
+        {/* Bulk Selection Action Bar */}
+        {authenticated && selectedIds.length > 0 && (
+          <div className="flex items-center justify-between px-4 py-2.5 bg-primary/10 border-b border-primary/20 text-xs animate-in fade-in duration-200">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-primary">{selectedIds.length} data terpilih</span>
+              <span className="text-muted-foreground hidden sm:inline">dari halaman ini</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedIds([])}
+                className="h-7 text-xs text-muted-foreground hover:text-foreground"
+              >
+                Batal Pilih
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setIsBulkDeleteOpen(true)}
+                className="h-7 text-xs shadow-xs"
+              >
+                <Trash2 className="size-3.5 mr-1.5" />
+                Hapus {selectedIds.length} Data Terpilih
+              </Button>
+            </div>
+          </div>
+        )}
+
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow className="border-border/60 bg-muted/40 hover:bg-muted/40">
                 <TableHead className="w-12 text-center text-xs font-semibold">No</TableHead>
-                <TableHead className="text-xs font-semibold">Tanggal & Waktu</TableHead>
-                <TableHead className="text-xs font-semibold">Lokasi Pantai & Stasiun</TableHead>
-                <TableHead className="text-xs font-semibold text-center">Korban</TableHead>
-                <TableHead className="text-xs font-semibold">Identitas (Nama / Usia)</TableHead>
-                <TableHead className="text-xs font-semibold">Gender</TableHead>
-                <TableHead className="text-xs font-semibold">Gejala & Penanganan</TableHead>
-                <TableHead className="text-xs font-semibold">Kaitan Event</TableHead>
-                {authenticated && <TableHead className="text-xs font-semibold text-right w-24">Aksi</TableHead>}
+                <TableHead
+                  className="text-xs font-semibold cursor-pointer select-none group hover:text-foreground transition-colors"
+                  onClick={() => handleSort("incident_date")}
+                  title="Urutkan Tanggal"
+                >
+                  <div className="flex items-center gap-1">
+                    <span>Tanggal & Waktu</span>
+                    {renderSortArrow("incident_date")}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="text-xs font-semibold cursor-pointer select-none group hover:text-foreground transition-colors"
+                  onClick={() => handleSort("location_name")}
+                  title="Urutkan Lokasi"
+                >
+                  <div className="flex items-center gap-1">
+                    <span>Lokasi Pantai & Stasiun</span>
+                    {renderSortArrow("location_name")}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="text-xs font-semibold text-center cursor-pointer select-none group hover:text-foreground transition-colors"
+                  onClick={() => handleSort("victim_count")}
+                  title="Urutkan Jumlah Korban"
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    <span>Korban</span>
+                    {renderSortArrow("victim_count")}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="text-xs font-semibold cursor-pointer select-none group hover:text-foreground transition-colors"
+                  onClick={() => handleSort("victim_name")}
+                  title="Urutkan Identitas"
+                >
+                  <div className="flex items-center gap-1">
+                    <span>Identitas (Nama / Usia)</span>
+                    {renderSortArrow("victim_name")}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="text-xs font-semibold cursor-pointer select-none group hover:text-foreground transition-colors"
+                  onClick={() => handleSort("victim_gender")}
+                  title="Urutkan Gender"
+                >
+                  <div className="flex items-center gap-1">
+                    <span>Gender</span>
+                    {renderSortArrow("victim_gender")}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="text-xs font-semibold cursor-pointer select-none group hover:text-foreground transition-colors"
+                  onClick={() => handleSort("severity_level")}
+                  title="Urutkan Gejala"
+                >
+                  <div className="flex items-center gap-1">
+                    <span>Gejala & Penanganan</span>
+                    {renderSortArrow("severity_level")}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="text-xs font-semibold cursor-pointer select-none group hover:text-foreground transition-colors"
+                  onClick={() => handleSort("bloom_event_code")}
+                  title="Urutkan Kaitan Event"
+                >
+                  <div className="flex items-center gap-1">
+                    <span>Kaitan Event</span>
+                    {renderSortArrow("bloom_event_code")}
+                  </div>
+                </TableHead>
+                {authenticated && (
+                  <TableHead className="text-xs font-semibold text-right w-28">
+                    <div className="flex items-center justify-end gap-2">
+                      <input
+                        type="checkbox"
+                        checked={isAllCurrentSelected}
+                        onChange={handleToggleSelectAll}
+                        title="Pilih Semua di Halaman Ini"
+                        className="rounded border-border size-4 accent-primary cursor-pointer transition-all"
+                      />
+                      <span className="w-[62px] text-center">Aksi</span>
+                    </div>
+                  </TableHead>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -899,7 +1103,14 @@ export default function StingsPage() {
                       </TableCell>
                       {authenticated && (
                         <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.includes(rec.id)}
+                              onChange={() => handleToggleSelect(rec.id)}
+                              title="Pilih data ini"
+                              className="rounded border-border size-4 accent-primary cursor-pointer mr-0.5 transition-all"
+                            />
                             <Button
                               variant="ghost"
                               size="icon"
@@ -935,26 +1146,50 @@ export default function StingsPage() {
             Menampilkan <span className="font-semibold text-foreground">{records.length}</span> dari{" "}
             <span className="font-semibold text-foreground">{totalCount}</span> insiden
           </span>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center flex-wrap gap-1">
             <Button
               variant="outline"
               size="sm"
               disabled={page <= 1 || loading}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className="h-8 px-2 text-xs"
+              className="h-8 px-2.5 text-xs"
             >
               <ChevronLeft className="size-3.5 mr-1" />
               Sebelumnya
             </Button>
-            <span className="text-xs text-muted-foreground px-2">
-              Halaman <span className="font-semibold text-foreground">{page}</span> / {totalPages}
-            </span>
+
+            <div className="flex items-center gap-1 mx-1">
+              {getPageNumbers().map((pNum, i) =>
+                typeof pNum === "number" ? (
+                  <Button
+                    key={`p-${pNum}`}
+                    variant={page === pNum ? "default" : "outline"}
+                    size="sm"
+                    disabled={loading}
+                    onClick={() => setPage(pNum)}
+                    className={cn(
+                      "h-8 w-8 p-0 text-xs font-semibold",
+                      page === pNum
+                        ? "bg-primary text-primary-foreground shadow-xs pointer-events-none"
+                        : "hover:bg-muted/80 text-foreground"
+                    )}
+                  >
+                    {pNum}
+                  </Button>
+                ) : (
+                  <span key={`dots-${i}`} className="px-1 text-xs text-muted-foreground select-none">
+                    •••
+                  </span>
+                )
+              )}
+            </div>
+
             <Button
               variant="outline"
               size="sm"
               disabled={page >= totalPages || loading}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              className="h-8 px-2 text-xs"
+              className="h-8 px-2.5 text-xs"
             >
               Berikutnya
               <ChevronRight className="size-3.5 ml-1" />
@@ -1375,6 +1610,53 @@ export default function StingsPage() {
             >
               {submitting ? <Loader2 className="size-3.5 animate-spin mr-1" /> : <Trash2 className="size-3.5 mr-1" />}
               Ya, Hapus Data
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Bulk Delete Confirm */}
+      <Dialog open={isBulkDeleteOpen} onOpenChange={setIsBulkDeleteOpen}>
+        <DialogContent className="max-w-md bg-white dark:bg-[#0c1322] border border-border shadow-2xl z-50 text-foreground">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive font-bold">
+              <AlertTriangle className="size-5" />
+              <span>Konfirmasi Hapus Beberapa Data</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground pt-1">
+              Apakah Anda yakin ingin menghapus{" "}
+              <strong className="text-foreground">{selectedIds.length} data laporan insiden sengatan</strong> yang dipilih?
+              Tindakan ini tidak dapat dibatalkan.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsBulkDeleteOpen(false)}
+              className="text-xs"
+              disabled={bulkDeleteSubmitting}
+            >
+              Batal
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={bulkDeleteSubmitting}
+              onClick={handleBulkDelete}
+              className="text-xs"
+            >
+              {bulkDeleteSubmitting ? (
+                <>
+                  <Loader2 className="size-3.5 animate-spin mr-1" />
+                  Menghapus...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="size-3.5 mr-1" />
+                  Ya, Hapus {selectedIds.length} Data
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
