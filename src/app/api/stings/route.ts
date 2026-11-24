@@ -247,3 +247,44 @@ export async function POST(request: Request) {
     )
   }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    const session = await getSession()
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: "Autentikasi diperlukan untuk menghapus data" },
+        { status: 401 }
+      )
+    }
+
+    const body = await request.json()
+    const ids: string[] = body.ids
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return NextResponse.json(
+        { success: false, error: "Daftar ID data tidak valid atau kosong" },
+        { status: 400 }
+      )
+    }
+
+    const deleteSql = `
+      DELETE FROM sting_records
+      WHERE id = ANY($1::uuid[])
+      RETURNING id
+    `
+    const result = await query(deleteSql, [ids])
+
+    return NextResponse.json({
+      success: true,
+      message: `${result.rowCount} data insiden sengatan berhasil dihapus`,
+      deletedCount: result.rowCount,
+    })
+  } catch (error) {
+    console.error("DELETE /api/stings Error:", error)
+    return NextResponse.json(
+      { success: false, error: "Gagal menghapus beberapa data insiden sengatan" },
+      { status: 500 }
+    )
+  }
+}
