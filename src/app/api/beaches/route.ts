@@ -4,7 +4,7 @@ import { query } from "@/lib/db"
 import { getSession } from "@/lib/auth"
 
 const createBeachSchema = z.object({
-  station_id: z.string().uuid("ID Stasiun harus berupa UUID valid"),
+  station_id: z.string().min(1, "Stasiun monitoring harus dipilih"),
   name: z.string().min(2, "Nama pantai minimal 2 karakter").max(150),
   village: z.string().max(100).optional().nullable(),
   subdistrict: z.string().max(100).optional().nullable(),
@@ -111,10 +111,12 @@ export async function POST(request: Request) {
     const parsed = createBeachSchema.safeParse(body)
 
     if (!parsed.success) {
+      const firstIssue = parsed.error.issues?.[0]
+      const errorMsg = firstIssue ? `${firstIssue.path.join(".")}: ${firstIssue.message}` : "Validasi data gagal"
       return NextResponse.json(
         {
           success: false,
-          error: "Validasi data gagal",
+          error: errorMsg,
           details: parsed.error.format(),
         },
         { status: 400 }
@@ -122,6 +124,20 @@ export async function POST(request: Request) {
     }
 
     const d = parsed.data
+
+    const stationCheck = await query(
+      `SELECT id FROM monitoring_stations WHERE id::text = $1 OR LOWER(station_code) = LOWER($1) LIMIT 1`,
+      [d.station_id]
+    )
+
+    if (stationCheck.rows.length === 0) {
+      return NextResponse.json(
+        { success: false, error: "Stasiun monitoring tidak ditemukan" },
+        { status: 404 }
+      )
+    }
+
+    const resolvedStationId = stationCheck.rows[0].id
 
     const insertSql = `
       INSERT INTO beaches (
@@ -132,7 +148,7 @@ export async function POST(request: Request) {
     `
 
     const res = await query(insertSql, [
-      d.station_id,
+      resolvedStationId,
       d.name,
       d.village || null,
       d.subdistrict || null,

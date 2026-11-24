@@ -383,7 +383,17 @@ export default function StationDetailPage({
 
       const data = await res.json()
       if (!res.ok || !data.success) {
-        setBeachFormError(data.error || "Gagal menambahkan pantai")
+        let msg = data.error || "Gagal menambahkan pantai"
+        if (data.details && typeof data.details === "object") {
+          const detailMsgs = Object.entries(data.details)
+            .filter(([k]) => k !== "_errors")
+            .map(([field, val]: [string, any]) => `${field}: ${Array.isArray(val?._errors) ? val._errors.join(", ") : ""}`)
+            .filter((s) => s.length > 2)
+          if (detailMsgs.length > 0) {
+            msg = detailMsgs.join("; ")
+          }
+        }
+        setBeachFormError(msg)
         return
       }
 
@@ -435,7 +445,17 @@ export default function StationDetailPage({
 
       const data = await res.json()
       if (!res.ok || !data.success) {
-        setBeachFormError(data.error || "Gagal memperbarui data pantai")
+        let msg = data.error || "Gagal memperbarui data pantai"
+        if (data.details && typeof data.details === "object") {
+          const detailMsgs = Object.entries(data.details)
+            .filter(([k]) => k !== "_errors")
+            .map(([field, val]: [string, any]) => `${field}: ${Array.isArray(val?._errors) ? val._errors.join(", ") : ""}`)
+            .filter((s) => s.length > 2)
+          if (detailMsgs.length > 0) {
+            msg = detailMsgs.join("; ")
+          }
+        }
+        setBeachFormError(msg)
         return
       }
 
