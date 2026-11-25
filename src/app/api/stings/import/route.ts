@@ -3,6 +3,7 @@ import { pool, query } from "@/lib/db"
 import { getSession } from "@/lib/auth"
 import { resolveBeachCoordinates } from "@/lib/beach-coordinates"
 import * as XLSX from "xlsx"
+import type { PoolClient } from "pg"
 
 const MONTH_MAP: Record<string, number> = {
   januari: 1, jan: 1,
@@ -21,6 +22,54 @@ const MONTH_MAP: Record<string, number> = {
 
 const DATA_SOURCE_TYPES = ["Hasil Sampling", "Referensi Jurnal", "Berita", "Laporan Instansi"] as const
 type DataSourceType = (typeof DATA_SOURCE_TYPES)[number]
+
+// Cache beach lookup per request (locationName.lower → beach_id)
+const beachCache = new Map<string, string>()
+
+/**
+ * Mencari pantai di tabel beaches (case-insensitive).
+ * Jika belum ada → auto-insert dengan data minimal (koordinat/desa/kecamatan dikosongkan).
+ * Hasilnya di-cache per request untuk efisiensi.
+ */
+async function resolveOrCreateBeach(
+  client: PoolClient,
+  locationName: string,
+  stationId: string
+): Promise<string> {
+  const norm = locationName.trim()
+  const cacheKey = `${norm.toLowerCase()}|${stationId}`
+
+  if (beachCache.has(cacheKey)) return beachCache.get(cacheKey)!
+
+  // 1. Exact match (case-insensitive)
+  const exact = await client.query<{ id: string }>(
+    `SELECT id FROM beaches WHERE LOWER(name) = LOWER($1) AND station_id = $2 LIMIT 1`,
+    [norm, stationId]
+  )
+  if (exact.rows[0]) {
+    beachCache.set(cacheKey, exact.rows[0].id)
+    return exact.rows[0].id
+  }
+
+  // 2. Partial match (ILIKE)
+  const partial = await client.query<{ id: string }>(
+    `SELECT id FROM beaches WHERE name ILIKE $1 AND station_id = $2 LIMIT 1`,
+    [`%${norm}%`, stationId]
+  )
+  if (partial.rows[0]) {
+    beachCache.set(cacheKey, partial.rows[0].id)
+    return partial.rows[0].id
+  }
+
+  // 3. Auto-insert pantai baru (koordinat/desa/kecamatan NULL)
+  const inserted = await client.query<{ id: string }>(
+    `INSERT INTO beaches (name, station_id, status) VALUES ($1, $2, 'aktif') RETURNING id`,
+    [norm.slice(0, 255), stationId]
+  )
+  const newId = inserted.rows[0].id
+  beachCache.set(cacheKey, newId)
+  return newId
+}
 
 let sourceColumnsEnsured = false
 
@@ -316,6 +365,8 @@ export async function POST(request: Request) {
     await ensureStingSourceColumns()
     const client = await pool.connect()
     let insertedCount = 0
+    let newBeachCount = 0
+    beachCache.clear() // reset cache per request
 
     try {
       await client.query("BEGIN")
@@ -323,20 +374,29 @@ export async function POST(request: Request) {
       const insertSql = `
         INSERT INTO sting_records (
           incident_date, location_name, latitude, longitude,
-          station_id, bloom_event_id, victim_count, victim_name,
+          station_id, beach_id, bloom_event_id, victim_count, victim_name,
           victim_age, victim_gender, severity_level, treatment_notes, reported_by,
           data_source_type, sampling_event_id, source_title, source_url
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
       `
 
+      // Track beaches yang sudah ada vs baru untuk laporan
+      const existingBeachIds = new Set<string>()
+      const beachIdsBefore = (await client.query<{ id: string }>(
+        `SELECT id FROM beaches WHERE station_id = $1`, [targetStationId]
+      )).rows.map(r => r.id)
+      beachIdsBefore.forEach(id => existingBeachIds.add(id))
+
       for (const rec of parsedRecords) {
+        const beachId = await resolveOrCreateBeach(client, rec.location_name, targetStationId)
         await client.query(insertSql, [
           rec.incident_date,
           rec.location_name.slice(0, 255),
           rec.latitude,
           rec.longitude,
           targetStationId,
+          beachId,
           rec.bloom_event_id,
           rec.victim_count,
           rec.victim_name ? rec.victim_name.slice(0, 255) : null,
@@ -351,6 +411,7 @@ export async function POST(request: Request) {
           sourceUrl,
         ])
         insertedCount++
+        if (!existingBeachIds.has(beachId)) newBeachCount++
       }
 
       const ext = (originalFileName.split(".").pop()?.toUpperCase() || "XLSX").slice(0, 10)
@@ -381,10 +442,11 @@ export async function POST(request: Request) {
         success: true,
         message: `Berhasil mengimpor ${insertedCount} catatan korban sengatan tahun ${yearInput}${
           skippedRows.length ? ` (${skippedRows.length} baris dilewati)` : ""
-        }`,
+        }${newBeachCount ? ` — ${newBeachCount} pantai baru ditambahkan` : ""}`,
         data: {
           total_processed: parsedRecords.length,
           inserted_count: insertedCount,
+          new_beaches_added: newBeachCount,
           skipped: skippedRows.slice(0, 20),
         },
       })
