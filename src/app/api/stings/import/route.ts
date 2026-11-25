@@ -19,6 +19,68 @@ const MONTH_MAP: Record<string, number> = {
   desember: 12, des: 12, dec: 12,
 }
 
+const DATA_SOURCE_TYPES = ["Hasil Sampling", "Referensi Jurnal", "Berita", "Laporan Instansi"] as const
+type DataSourceType = (typeof DATA_SOURCE_TYPES)[number]
+
+let sourceColumnsEnsured = false
+
+async function ensureStingSourceColumns() {
+  if (sourceColumnsEnsured) return
+  await query(`
+    ALTER TABLE sting_records
+      ADD COLUMN IF NOT EXISTS data_source_type VARCHAR(50) DEFAULT 'Hasil Sampling',
+      ADD COLUMN IF NOT EXISTS sampling_event_id UUID REFERENCES sampling_events(id) ON DELETE SET NULL,
+      ADD COLUMN IF NOT EXISTS source_title VARCHAR(500),
+      ADD COLUMN IF NOT EXISTS source_url VARCHAR(1024);
+  `)
+  sourceColumnsEnsured = true
+}
+
+type ParsedRecord = {
+  incident_date: string
+  location_name: string
+  latitude: number
+  longitude: number
+  bloom_event_id: string | null
+  victim_count: number
+  victim_name: string | null
+  victim_age: string | null
+  victim_gender: string | null
+  severity_level: string
+  treatment_notes: string
+}
+
+const cellStr = (v: unknown) => (v === null || v === undefined ? "" : String(v).trim())
+const cellNum = (v: unknown) => {
+  const n = parseInt(cellStr(v), 10)
+  return isNaN(n) ? 0 : n
+}
+const emptyToNull = (v: unknown) => {
+  const s = cellStr(v)
+  return s && s !== "-" ? s : null
+}
+
+function parseMonth(v: unknown): number | null {
+  const s = cellStr(v).toLowerCase()
+  if (!s) return null
+  if (MONTH_MAP[s]) return MONTH_MAP[s]
+  const n = parseInt(s, 10)
+  return n >= 1 && n <= 12 ? n : null
+}
+
+function parseDay(v: unknown): number | null {
+  if (v === null || v === undefined || v === "") return null
+  const n = typeof v === "number" ? v : parseInt(cellStr(v), 10)
+  if (isNaN(n)) return null
+  if (n >= 1 && n <= 31) return Math.floor(n)
+  // Excel date serial (mis. kolom tanggal diformat sebagai tanggal)
+  if (n > 31) {
+    const d = XLSX.SSF.parse_date_code(n)
+    if (d && d.d >= 1 && d.d <= 31) return d.d
+  }
+  return null
+}
+
 export async function POST(request: Request) {
   try {
     const session = await getSession()
@@ -39,156 +101,202 @@ export async function POST(request: Request) {
       )
     }
 
+    // ---------- Metadata form upload ----------
+    const stationIdInput = cellStr(formData.get("station_id"))
+    const yearInput = parseInt(cellStr(formData.get("year")), 10)
+    const sourceTypeInput = cellStr(formData.get("data_source_type")) as DataSourceType
+    const samplingEventIdInput = cellStr(formData.get("sampling_event_id"))
+    const sourceTitleInput = cellStr(formData.get("source_title"))
+    const sourceUrlInput = cellStr(formData.get("source_url"))
+
+    if (!stationIdInput || stationIdInput === "all") {
+      return NextResponse.json({ success: false, error: "Stasiun pengamatan wajib dipilih" }, { status: 400 })
+    }
+    if (isNaN(yearInput) || yearInput < 1900 || yearInput > 2100) {
+      return NextResponse.json({ success: false, error: "Tahun kejadian wajib diisi dengan benar (1900-2100)" }, { status: 400 })
+    }
+    if (!DATA_SOURCE_TYPES.includes(sourceTypeInput)) {
+      return NextResponse.json(
+        { success: false, error: `Sumber data wajib dipilih (${DATA_SOURCE_TYPES.join(" / ")})` },
+        { status: 400 }
+      )
+    }
+
+    const stationRes = await query<{ id: string }>(
+      `SELECT id FROM monitoring_stations WHERE id::text = $1 OR LOWER(station_code) = LOWER($1) LIMIT 1`,
+      [stationIdInput]
+    )
+    const targetStationId = stationRes.rows[0]?.id
+    if (!targetStationId) {
+      return NextResponse.json({ success: false, error: "Stasiun pengamatan tidak ditemukan" }, { status: 404 })
+    }
+
+    let samplingEventId: string | null = null
+    let sourceTitle: string | null = null
+    let sourceUrl: string | null = null
+
+    if (sourceTypeInput === "Hasil Sampling") {
+      if (!samplingEventIdInput) {
+        return NextResponse.json(
+          { success: false, error: "Sampling event wajib dipilih untuk sumber data Hasil Sampling" },
+          { status: 400 }
+        )
+      }
+      const seRes = await query<{ id: string; sampling_code: string }>(
+        `SELECT id, sampling_code FROM sampling_events WHERE id::text = $1 AND station_id = $2 LIMIT 1`,
+        [samplingEventIdInput, targetStationId]
+      )
+      if (seRes.rows.length === 0) {
+        return NextResponse.json(
+          { success: false, error: "Sampling event tidak ditemukan pada stasiun pengamatan yang dipilih" },
+          { status: 400 }
+        )
+      }
+      samplingEventId = seRes.rows[0].id
+      sourceTitle = seRes.rows[0].sampling_code
+    } else {
+      if (!sourceTitleInput) {
+        return NextResponse.json(
+          { success: false, error: `Judul / nama sumber wajib diisi untuk sumber data ${sourceTypeInput}` },
+          { status: 400 }
+        )
+      }
+      sourceTitle = sourceTitleInput.slice(0, 500)
+      sourceUrl = sourceUrlInput ? sourceUrlInput.slice(0, 1024) : null
+    }
+
+    // ---------- Baca workbook ----------
     const originalFileName = file.name
     const fileSizeBytes = file.size
-    const arrayBuffer = await file.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
+    const buffer = Buffer.from(await file.arrayBuffer())
 
     let workbook: XLSX.WorkBook
     try {
       workbook = XLSX.read(buffer, { type: "buffer" })
-    } catch (parseErr) {
+    } catch {
       return NextResponse.json(
         { success: false, error: "Format berkas tidak valid atau berkas rusak" },
         { status: 400 }
       )
     }
 
-    // Station ID from form or default to ST-03 (Pesisir Selatan Jawa)
-    const userStationId = formData.get("station_id") as string | null
-    let targetStationId = userStationId && userStationId !== "all" ? userStationId : null
-    if (!targetStationId) {
-      const stRes = await query<{ id: string }>(`SELECT id FROM monitoring_stations WHERE station_code = 'ST-03' LIMIT 1`)
-      targetStationId = stRes.rows[0]?.id || null
-    }
-
-    // Bloom event
-    const evRes = await query(`SELECT id FROM bloom_events WHERE event_code = 'EVT-202607-02' LIMIT 1`)
+    const evRes = await query<{ id: string }>(`SELECT id FROM bloom_events WHERE event_code = 'EVT-202607-02' LIMIT 1`)
     const jellyfishEventId = evRes.rows[0]?.id || null
 
-    const parsedRecords: {
-      incident_date: string
-      location_name: string
-      latitude: number
-      longitude: number
-      station_id: string | null
-      bloom_event_id: string | null
-      victim_count: number
-      victim_name: string | null
-      victim_age: string | null
-      victim_gender: string | null
-      severity_level: string
-      treatment_notes: string
-    }[] = []
-
-    const failedRows: { sheet: string; row: number; reason: string }[] = []
+    const parsedRecords: ParsedRecord[] = []
+    const skippedRows: string[] = []
 
     for (const sheetName of workbook.SheetNames) {
-      const yearNumber = parseInt(sheetName, 10) || new Date().getFullYear()
       const sheet = workbook.Sheets[sheetName]
-      const rawData = XLSX.utils.sheet_to_json<any>(sheet, { header: 1 })
+      const rawData = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: null })
 
+      // Cari baris header
       let headerRowIdx = -1
-      const colIdxMap: Record<string, number> = {}
+      const col: Record<string, number> = {}
 
-      for (let i = 0; i < Math.min(rawData.length, 12); i++) {
+      for (let i = 0; i < Math.min(rawData.length, 15); i++) {
         const row = rawData[i] || []
-        const joined = row.map((c: any) => String(c || "")).join(" ").toLowerCase()
-        if (joined.includes("lokasi") || joined.includes("pantai") || (joined.includes("bulan") && joined.includes("korban"))) {
-          headerRowIdx = i
-          row.forEach((cell: any, idx: number) => {
-            const str = String(cell || "").toLowerCase().trim()
-            if (str === "no") colIdxMap.no = idx
-            else if (str.includes("bulan")) colIdxMap.month = idx
-            else if (str.includes("tanggal") || str.includes("tgl")) colIdxMap.date = idx
-            else if (str.includes("lokasi") || str.includes("pantai")) colIdxMap.location = idx
-            else if (str.includes("jumlah") || str.includes("korban")) {
-              if (!("victimCount" in colIdxMap)) colIdxMap.victimCount = idx
-            }
-            else if (str.includes("nama")) colIdxMap.name = idx
-            else if (str.includes("umur") || str.includes("usia")) colIdxMap.age = idx
-            else if (str.includes("kelamin") || str.includes("gender")) colIdxMap.gender = idx
-          })
-          break
-        }
+        const joined = row.map(cellStr).join(" ").toLowerCase()
+        if (!joined.includes("lokasi") && !joined.includes("pantai")) continue
+
+        headerRowIdx = i
+        row.forEach((cell, idx) => {
+          const s = cellStr(cell).toLowerCase()
+          if (!s) return
+          if (s === "no" || s === "no.") col.no = idx
+          else if (s.includes("bulan")) col.month = idx
+          else if (s.includes("tanggal") || s.includes("tgl")) col.date = idx
+          else if (s.includes("lokasi") || s.includes("pantai")) col.location = idx
+          else if (s.includes("nama")) col.name = idx
+          else if (s.includes("jumlah")) col.victimCount = idx
+          else if (s.includes("umur") || s.includes("usia")) col.age = idx
+          else if (s.includes("kelamin") || s.includes("gender")) col.gender = idx
+          else if (s.includes("laki")) col.male = idx
+          else if (s.includes("perempuan")) col.female = idx
+        })
+
+        // Sub-header (format db_korban.xlsx): "Laki-laki" | "Perempuan"
+        const subRow = rawData[i + 1] || []
+        subRow.forEach((cell, idx) => {
+          const s = cellStr(cell).toLowerCase()
+          if (s.includes("laki")) col.male = idx
+          else if (s.includes("perempuan")) col.female = idx
+        })
+        break
       }
 
-      if (headerRowIdx === -1 || colIdxMap.location === undefined) {
-        // Skip sheet if no relevant headers
-        continue
-      }
+      if (headerRowIdx === -1 || col.location === undefined) continue
+
+      const hasGenderCountCols = col.male !== undefined || col.female !== undefined
 
       for (let r = headerRowIdx + 1; r < rawData.length; r++) {
         const row = rawData[r] || []
-        if (!row || row.length === 0) continue
-
-        const locVal = colIdxMap.location !== undefined ? String(row[colIdxMap.location] || "").trim() : ""
+        const locVal = cellStr(row[col.location])
         if (!locVal || locVal === "-" || locVal === "0") continue
 
-        // Ignore summary note rows
-        if (locVal.toLowerCase().startsWith("distribusi") || locVal.toLowerCase().startsWith("berdasarkan")) {
-          break
+        const lower = locVal.toLowerCase()
+        if (lower.startsWith("distribusi") || lower.startsWith("berdasarkan") || lower.startsWith("total")) break
+
+        const month = col.month !== undefined ? parseMonth(row[col.month]) : null
+        const day = col.date !== undefined ? parseDay(row[col.date]) : null
+        if (!month || !day) {
+          skippedRows.push(`Baris ${r + 1} (${sheetName}): bulan/tanggal kejadian tidak valid`)
+          continue
         }
 
-        const monthName = colIdxMap.month !== undefined ? String(row[colIdxMap.month] || "").trim() : ""
-        const mNum = MONTH_MAP[monthName.toLowerCase()] || 7
-        const mm = String(mNum).padStart(2, "0")
+        const lastDay = new Date(yearInput, month, 0).getDate()
+        const incidentDate = `${yearInput}-${String(month).padStart(2, "0")}-${String(Math.min(day, lastDay)).padStart(2, "0")}`
 
-        let dateDay = 15
-        if (colIdxMap.date !== undefined && row[colIdxMap.date]) {
-          const dParsed = parseInt(String(row[colIdxMap.date]), 10)
-          if (!isNaN(dParsed) && dParsed >= 1 && dParsed <= 31) {
-            dateDay = dParsed
+        const totalCount = col.victimCount !== undefined ? cellNum(row[col.victimCount]) : 0
+        const victimName = col.name !== undefined ? emptyToNull(row[col.name]) : null
+        const victimAge = col.age !== undefined ? emptyToNull(row[col.age]) : null
+
+        // Tentukan pembagian jenis kelamin
+        const groups: { gender: string | null; count: number }[] = []
+        if (hasGenderCountCols) {
+          const male = col.male !== undefined ? cellNum(row[col.male]) : 0
+          const female = col.female !== undefined ? cellNum(row[col.female]) : 0
+          if (male > 0 && female > 0) {
+            groups.push({ gender: "Laki-laki", count: male }, { gender: "Perempuan", count: female })
+          } else if (male > 0) {
+            groups.push({ gender: "Laki-laki", count: totalCount || male })
+          } else if (female > 0) {
+            groups.push({ gender: "Perempuan", count: totalCount || female })
+          } else {
+            groups.push({ gender: null, count: totalCount || 1 })
           }
-        }
-        const dd = String(dateDay).padStart(2, "0")
-        const incidentDate = `${yearNumber}-${mm}-${dd}`
-
-        let victimCount = 1
-        if (colIdxMap.victimCount !== undefined && row[colIdxMap.victimCount]) {
-          const vc = parseInt(String(row[colIdxMap.victimCount]), 10)
-          if (!isNaN(vc) && vc > 0) victimCount = vc
-        }
-
-        const victimName = colIdxMap.name !== undefined && row[colIdxMap.name] && String(row[colIdxMap.name]).trim() !== "-"
-          ? String(row[colIdxMap.name]).trim()
-          : null
-
-        const victimAge = colIdxMap.age !== undefined && row[colIdxMap.age] && String(row[colIdxMap.age]).trim() !== "-"
-          ? String(row[colIdxMap.age]).trim()
-          : null
-
-        let victimGender: string | null = null
-        if (colIdxMap.gender !== undefined && row[colIdxMap.gender]) {
-          const gStr = String(row[colIdxMap.gender]).toLowerCase().trim()
-          if (gStr.includes("laki") || gStr === "l") victimGender = "Laki-laki"
-          else if (gStr.includes("perempuan") || gStr === "p") victimGender = "Perempuan"
+        } else {
+          let gender: string | null = null
+          if (col.gender !== undefined) {
+            const g = cellStr(row[col.gender]).toLowerCase()
+            if (g.includes("laki") || g === "l") gender = "Laki-laki"
+            else if (g.includes("perempuan") || g === "p") gender = "Perempuan"
+          }
+          groups.push({ gender, count: totalCount || 1 })
         }
 
         const coords = resolveBeachCoordinates(locVal)
+        const bloomId = incidentDate.startsWith("2026-07") ? jellyfishEventId : null
+        const ageNum = victimAge ? parseInt(victimAge, 10) : NaN
+        const severity = !isNaN(ageNum) && ageNum < 12
+          ? "Sedang - Sesak Napas & Kram"
+          : "Ringan - Iritasi Kulit & Nyeri Panas"
 
-        let bloomId: string | null = null
-        if (incidentDate.startsWith("2026-07")) {
-          bloomId = jellyfishEventId
+        for (const g of groups) {
+          parsedRecords.push({
+            incident_date: incidentDate,
+            location_name: locVal,
+            latitude: coords[0],
+            longitude: coords[1],
+            bloom_event_id: bloomId,
+            victim_count: Math.max(1, g.count),
+            victim_name: victimName,
+            victim_age: victimAge,
+            victim_gender: g.gender,
+            severity_level: severity,
+            treatment_notes: "Penanganan pertama oleh Tim SAR Linmas Pantai (kompres cuka asam asetat).",
+          })
         }
-
-        const isChild = victimAge && (parseInt(victimAge, 10) < 12 || (victimAge.includes("tahun") && parseInt(victimAge, 10) < 12))
-        const severity = isChild ? "Sedang - Sesak Napas & Kram" : "Ringan - Iritasi Kulit & Nyeri Panas"
-
-        parsedRecords.push({
-          incident_date: incidentDate,
-          location_name: locVal,
-          latitude: coords[0],
-          longitude: coords[1],
-          station_id: targetStationId,
-          bloom_event_id: bloomId,
-          victim_count: victimCount,
-          victim_name: victimName,
-          victim_age: victimAge,
-          victim_gender: victimGender,
-          severity_level: severity,
-          treatment_notes: "Penanganan pertama oleh Tim SAR Linmas Pantai (kompres cuka asam asetat).",
-        })
       }
     }
 
@@ -196,13 +304,16 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           success: false,
-          error: "Tidak ada baris data valid yang dapat diimpor dari file ini. Pastikan kolom memuat 'Bulan', 'Tanggal', 'Lokasi Pantai', dan 'Jumlah Korban'.",
+          error:
+            "Tidak ada baris data valid yang dapat diimpor. Gunakan template resmi dengan kolom 'Bulan Kejadian', 'Tanggal Kejadian', 'Lokasi Pantai', dan 'Jumlah Korban'.",
+          skipped: skippedRows.slice(0, 20),
         },
         { status: 400 }
       )
     }
 
-    // Insert records in database transaction
+    // ---------- Simpan ke database (transaksi) ----------
+    await ensureStingSourceColumns()
     const client = await pool.connect()
     let insertedCount = 0
 
@@ -213,49 +324,54 @@ export async function POST(request: Request) {
         INSERT INTO sting_records (
           incident_date, location_name, latitude, longitude,
           station_id, bloom_event_id, victim_count, victim_name,
-          victim_age, victim_gender, severity_level, treatment_notes, reported_by
+          victim_age, victim_gender, severity_level, treatment_notes, reported_by,
+          data_source_type, sampling_event_id, source_title, source_url
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       `
 
       for (const rec of parsedRecords) {
         await client.query(insertSql, [
           rec.incident_date,
-          rec.location_name,
+          rec.location_name.slice(0, 255),
           rec.latitude,
           rec.longitude,
-          rec.station_id,
+          targetStationId,
           rec.bloom_event_id,
           rec.victim_count,
-          rec.victim_name,
-          rec.victim_age,
+          rec.victim_name ? rec.victim_name.slice(0, 255) : null,
+          rec.victim_age ? rec.victim_age.slice(0, 50) : null,
           rec.victim_gender,
-          rec.severity_level,
+          rec.severity_level.slice(0, 50),
           rec.treatment_notes,
           session.id,
+          sourceTypeInput,
+          samplingEventId,
+          sourceTitle,
+          sourceUrl,
         ])
         insertedCount++
       }
 
-      // Record in datasets table
-      const ext = originalFileName.split(".").pop()?.toUpperCase() || "XLSX"
+      const ext = (originalFileName.split(".").pop()?.toUpperCase() || "XLSX").slice(0, 10)
       const generatedFileName = `STING_IMPORT_${Date.now()}.${ext.toLowerCase()}`
       await client.query(
         `
         INSERT INTO datasets (
-          file_name, original_name, file_format, file_size_bytes, storage_path, description, uploaded_by, station_id
+          file_name, original_name, file_format, file_size_bytes, storage_path, description, uploaded_by, station_id, sampling_event_id
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       `,
         [
-          generatedFileName,
-          originalFileName,
+          generatedFileName.slice(0, 255),
+          originalFileName.slice(0, 255),
           ext,
           fileSizeBytes,
-          `/uploads/datasets/${generatedFileName}`,
-          `Bulk import data korban sengatan ubur-ubur (${insertedCount} baris insiden)`,
+          `/uploads/datasets/${generatedFileName}`.slice(0, 512),
+          `Import data korban sengatan ubur-ubur tahun ${yearInput} (${insertedCount} catatan) — Sumber: ${sourceTypeInput}${sourceTitle ? ` (${sourceTitle})` : ""}`,
           session.id,
           targetStationId,
+          samplingEventId,
         ]
       )
 
@@ -263,10 +379,13 @@ export async function POST(request: Request) {
 
       return NextResponse.json({
         success: true,
-        message: `Berhasil mengimpor ${insertedCount} data korban sengatan ubur-ubur`,
+        message: `Berhasil mengimpor ${insertedCount} catatan korban sengatan tahun ${yearInput}${
+          skippedRows.length ? ` (${skippedRows.length} baris dilewati)` : ""
+        }`,
         data: {
           total_processed: parsedRecords.length,
           inserted_count: insertedCount,
+          skipped: skippedRows.slice(0, 20),
         },
       })
     } catch (dbErr) {
@@ -277,8 +396,12 @@ export async function POST(request: Request) {
     }
   } catch (error) {
     console.error("POST /api/stings/import Error:", error)
+    const detail = error instanceof Error ? error.message : String(error)
     return NextResponse.json(
-      { success: false, error: "Terjadi kesalahan internal saat memproses unggahan file" },
+      {
+        success: false,
+        error: `Terjadi kesalahan internal saat memproses unggahan file: ${detail}`,
+      },
       { status: 500 }
     )
   }

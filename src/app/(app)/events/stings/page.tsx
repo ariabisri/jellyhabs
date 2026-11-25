@@ -201,6 +201,44 @@ export default function StingsPage() {
   const [importFile, setImportFile] = React.useState<File | null>(null)
   const [importing, setImporting] = React.useState(false)
   const [importResult, setImportResult] = React.useState<{ message?: string; count?: number; error?: string } | null>(null)
+  const [importYear, setImportYear] = React.useState(String(new Date().getFullYear()))
+  const [importSourceType, setImportSourceType] = React.useState<string>("Hasil Sampling")
+  const [importSamplingId, setImportSamplingId] = React.useState("")
+  const [importSourceTitle, setImportSourceTitle] = React.useState("")
+  const [importSourceUrl, setImportSourceUrl] = React.useState("")
+  const [samplingOptions, setSamplingOptions] = React.useState<
+    { id: string; sampling_code: string; sampling_date: string }[]
+  >([])
+  const [samplingLoading, setSamplingLoading] = React.useState(false)
+
+  // Load sampling events for the selected import station
+  React.useEffect(() => {
+    if (!isImportOpen || !importStationId) return
+    let cancelled = false
+    setSamplingLoading(true)
+    fetch(`/api/sampling?station_id=${encodeURIComponent(importStationId)}`)
+      .then((r) => r.json())
+      .then((json) => {
+        if (cancelled) return
+        const rows = json.success && Array.isArray(json.data) ? json.data : []
+        setSamplingOptions(rows)
+        setImportSamplingId((prev) => (rows.some((s: { id: string }) => s.id === prev) ? prev : ""))
+      })
+      .catch(() => !cancelled && setSamplingOptions([]))
+      .finally(() => !cancelled && setSamplingLoading(false))
+    return () => {
+      cancelled = true
+    }
+  }, [isImportOpen, importStationId])
+
+  const importYearNum = parseInt(importYear, 10)
+  const importFormValid =
+    !!importFile &&
+    !!importStationId &&
+    !isNaN(importYearNum) &&
+    importYearNum >= 1900 &&
+    importYearNum <= 2100 &&
+    (importSourceType === "Hasil Sampling" ? !!importSamplingId : !!importSourceTitle.trim())
 
   // Fetch Stations
   const fetchStations = React.useCallback(async () => {
@@ -490,15 +528,21 @@ export default function StingsPage() {
   // Handle Import Submit
   const handleImportSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!importFile) return
+    if (!importFile || !importFormValid) return
     setImporting(true)
     setImportResult(null)
 
     try {
       const fd = new FormData()
       fd.append("file", importFile)
-      if (importStationId) {
-        fd.append("station_id", importStationId)
+      fd.append("station_id", importStationId)
+      fd.append("year", importYear)
+      fd.append("data_source_type", importSourceType)
+      if (importSourceType === "Hasil Sampling") {
+        fd.append("sampling_event_id", importSamplingId)
+      } else {
+        fd.append("source_title", importSourceTitle.trim())
+        if (importSourceUrl.trim()) fd.append("source_url", importSourceUrl.trim())
       }
 
       const res = await fetch("/api/stings/import", {
@@ -1664,149 +1708,248 @@ export default function StingsPage() {
 
       {/* Dialog: Import Excel/CSV */}
       <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
-        <DialogContent className="max-w-lg bg-white dark:bg-[#0c1322] border-2 border-primary/20 dark:border-primary/30 shadow-2xl z-50 text-foreground">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-lg font-bold text-foreground">
-              <FileSpreadsheet className="size-5 text-primary" />
-              <span>Import Data Korban Sengatan</span>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col gap-0 p-0 overflow-hidden bg-white dark:bg-[#0c1322] border-2 border-primary/20 dark:border-primary/30 shadow-2xl z-50 text-foreground">
+          <DialogHeader className="px-6 pt-5 pb-3.5 border-b border-border/60 shrink-0 pr-12">
+            <DialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
+              <FileSpreadsheet className="size-5 text-primary shrink-0" />
+              <span>Import Data Korban Sengatan Ubur-Ubur</span>
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              Unggah file spreadsheet Excel (.xlsx, .xls) atau .csv sesuai format database laporan korban sengatan ubur-ubur.
+              Lengkapi target stasiun, tahun kejadian, serta sumber data lalu unggah file spreadsheet sesuai template resmi.
             </DialogDescription>
           </DialogHeader>
 
-          {/* Template Download Guide Banner */}
-          <div className="p-3 rounded-lg bg-primary/10 border border-primary/20 text-foreground flex items-start gap-2.5">
-            <Info className="size-4 text-primary shrink-0 mt-0.5" />
-            <div className="space-y-1.5 flex-1">
-              <p className="font-semibold text-xs text-primary">Panduan & Template Format Spreadsheet:</p>
-              <p className="text-muted-foreground text-[11px] leading-relaxed">
-                Gunakan template resmi untuk format laporan insiden korban sengatan per tahun (No, Tanggal, Bulan, Lokasi, Jumlah Korban, dll).
-              </p>
-              <a
-                href="/api/stings/template"
-                className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-xs"
-              >
-                <Download className="size-3.5" />
-                Unduh Template Excel Resmi (.xlsx)
-              </a>
-            </div>
-          </div>
-
-          {importResult?.error && (
-            <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/25 text-destructive text-xs flex items-center gap-2">
-              <AlertTriangle className="size-4 shrink-0" />
-              <span>{importResult.error}</span>
-            </div>
-          )}
-
-          {importResult?.message && (
-            <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs flex items-center gap-2">
-              <CheckCircle2 className="size-4 shrink-0" />
-              <span>{importResult.message}</span>
-            </div>
-          )}
-
-          <form onSubmit={handleImportSubmit} className="space-y-4 py-2">
-            {/* Target Stasiun Pengamatan Selector */}
-            <div className="space-y-1.5 p-3 rounded-lg bg-primary/5 dark:bg-primary/[0.04] border border-primary/20">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs font-bold flex items-center gap-1.5 text-primary">
-                  <Anchor className="size-3.5" />
-                  <span>Target Stasiun Pengamatan Laut</span>
-                </Label>
-                <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/30 font-medium">
-                  {stations.find((s) => s.id === importStationId)?.name || "Stasiun Terpilih"}
-                </Badge>
+          <form onSubmit={handleImportSubmit} className="flex flex-col flex-1 min-h-0">
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+              {/* Template Download Guide Banner (Compact Horizontal) */}
+              <div className="p-3 rounded-lg bg-primary/10 border border-primary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-start gap-2.5 min-w-0">
+                  <Info className="size-4 text-primary shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <p className="font-semibold text-xs text-primary">Template Format Laporan Resmi</p>
+                    <p className="text-muted-foreground text-[11px] leading-snug">
+                      Format 2 baris header (Bulan, Tanggal, Lokasi Pantai, Jumlah Korban, Nama, Umur, Jenis Kelamin L/P).
+                    </p>
+                  </div>
+                </div>
+                <a
+                  href="/api/stings/template"
+                  download
+                  className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-xs shrink-0 whitespace-nowrap"
+                >
+                  <Download className="size-3.5" />
+                  Unduh Template (.xlsx)
+                </a>
               </div>
-              <Select
-                value={importStationId}
-                onValueChange={(val) => setImportStationId(val || "")}
-              >
-                <SelectTrigger className="h-9 text-xs bg-slate-50 dark:bg-[#162032] border-slate-300 dark:border-slate-700 text-foreground font-semibold">
-                  <SelectValue placeholder="Pilih Stasiun Pengamatan Target">
-                    {stations.find((s) => s.id === importStationId)?.name}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent className="bg-white dark:bg-[#0c1322] border-slate-300 dark:border-slate-700 text-foreground shadow-2xl z-[70]">
-                  {stations.map((st) => (
-                    <SelectItem key={st.id} value={st.id}>
-                      {st.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-[11px] text-muted-foreground mt-0.5">
-                Seluruh data baris korban sengatan dari spreadsheet akan diasosiasikan dengan area stasiun pengamatan ini.
-              </p>
-            </div>
 
-            <div className="border-2 border-dashed border-border/80 hover:border-primary/60 rounded-xl p-6 text-center transition-colors bg-slate-50/50 dark:bg-[#162032]/40">
-              <Upload className="size-8 text-muted-foreground mx-auto mb-2" />
-              <div className="text-xs font-semibold text-foreground mb-1">
-                {importFile ? importFile.name : "Pilih atau Seret Berkas ke Sini"}
+              {importResult?.error && (
+                <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/25 text-destructive text-xs flex items-start gap-2">
+                  <AlertTriangle className="size-4 shrink-0 mt-0.5" />
+                  <span className="break-words">{importResult.error}</span>
+                </div>
+              )}
+
+              {importResult?.message && (
+                <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs flex items-start gap-2">
+                  <CheckCircle2 className="size-4 shrink-0 mt-0.5" />
+                  <span>{importResult.message}</span>
+                </div>
+              )}
+
+              {/* Stasiun Pengamatan & Tahun Kejadian */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
+                    <Anchor className="size-3.5 text-primary" />
+                    <span>Stasiun Pengamatan Laut *</span>
+                  </Label>
+                  <Select
+                    value={importStationId}
+                    onValueChange={(val) => setImportStationId(val || "")}
+                  >
+                    <SelectTrigger className="w-full h-10 px-3 text-xs bg-slate-50 dark:bg-[#162032] border-slate-300 dark:border-slate-700 text-foreground font-medium text-left">
+                      <SelectValue placeholder="Pilih Stasiun Pengamatan Target" className="truncate">
+                        {stations.find((s) => s.id === importStationId)?.name}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent className="min-w-[var(--anchor-width)] w-auto max-w-[90vw] p-1.5 bg-white dark:bg-[#0c1322] border-slate-300 dark:border-slate-700 text-foreground shadow-2xl z-[80]">
+                      {stations.map((st) => (
+                        <SelectItem key={st.id} value={st.id} className="py-2 pl-3 pr-9 text-xs cursor-pointer">
+                          {st.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-foreground">Tahun Kejadian *</Label>
+                  <Input
+                    type="number"
+                    min={1900}
+                    max={2100}
+                    value={importYear}
+                    onChange={(e) => setImportYear(e.target.value)}
+                    placeholder="2026"
+                    className="w-full h-10 px-3 text-xs bg-slate-50 dark:bg-[#162032] border-slate-300 dark:border-slate-700 text-foreground"
+                  />
+                </div>
               </div>
-              <p className="text-[11px] text-muted-foreground mb-3">
-                Mendukung file .xlsx, .xls, atau .csv (Maksimal 10 MB)
-              </p>
-              <input
-                type="file"
-                accept=".xlsx,.xls,.csv"
-                id="excel-upload"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0] || null
-                  setImportFile(f)
-                  setImportResult(null)
-                }}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="text-xs bg-background border-border"
-                onClick={() => document.getElementById("excel-upload")?.click()}
-              >
-                Pilih Berkas Komputer
-              </Button>
-            </div>
 
-            <div className="rounded-lg bg-slate-100 dark:bg-[#162032] p-3 text-[11px] text-muted-foreground space-y-1 border border-border/40">
-              <div className="font-semibold text-foreground flex items-center gap-1">
-                <Info className="size-3.5 text-primary inline" />
-                Format Kolom Spreadsheet yang Didukung:
+              {/* Sumber Data */}
+              <div className="space-y-3 p-3.5 rounded-lg bg-slate-50/80 dark:bg-[#162032]/40 border border-border/70">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-foreground">Sumber Data *</Label>
+                  <Select value={importSourceType} onValueChange={(val) => setImportSourceType(val || "Hasil Sampling")}>
+                    <SelectTrigger className="w-full h-10 px-3 text-xs bg-white dark:bg-[#162032] border-slate-300 dark:border-slate-700 text-foreground font-medium text-left">
+                      <SelectValue placeholder="Pilih sumber data" className="truncate">
+                        {importSourceType === "Hasil Sampling" ? "Hasil Sampling Event" : importSourceType}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent className="min-w-[var(--anchor-width)] w-auto max-w-[90vw] p-1.5 bg-white dark:bg-[#0c1322] border-slate-300 dark:border-slate-700 text-foreground shadow-2xl z-[80]">
+                      <SelectItem value="Hasil Sampling" className="py-2 pl-3 pr-9 text-xs cursor-pointer">
+                        Hasil Sampling Event
+                      </SelectItem>
+                      <SelectItem value="Referensi Jurnal" className="py-2 pl-3 pr-9 text-xs cursor-pointer">
+                        Referensi Jurnal
+                      </SelectItem>
+                      <SelectItem value="Berita" className="py-2 pl-3 pr-9 text-xs cursor-pointer">
+                        Berita
+                      </SelectItem>
+                      <SelectItem value="Laporan Instansi" className="py-2 pl-3 pr-9 text-xs cursor-pointer">
+                        Laporan Instansi
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {importSourceType === "Hasil Sampling" ? (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-foreground">Sampling Event *</Label>
+                    <Select value={importSamplingId} onValueChange={(val) => setImportSamplingId(val || "")}>
+                      <SelectTrigger className="w-full h-10 px-3 text-xs bg-white dark:bg-[#162032] border-slate-300 dark:border-slate-700 text-foreground text-left">
+                        <SelectValue
+                          className="truncate"
+                          placeholder={
+                            samplingLoading
+                              ? "Memuat sampling event..."
+                              : samplingOptions.length === 0
+                                ? "Belum ada sampling event di stasiun ini"
+                                : "Pilih sampling event"
+                          }
+                        >
+                          {(() => {
+                            const s = samplingOptions.find((o) => o.id === importSamplingId)
+                            return s ? `${s.sampling_code} (${s.sampling_date})` : undefined
+                          })()}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent className="min-w-[var(--anchor-width)] w-auto max-w-[90vw] p-1.5 bg-white dark:bg-[#0c1322] border-slate-300 dark:border-slate-700 text-foreground shadow-2xl z-[80]">
+                        {samplingOptions.map((s) => (
+                          <SelectItem key={s.id} value={s.id} className="py-2 pl-3 pr-9 text-xs cursor-pointer">
+                            {s.sampling_code} ({s.sampling_date})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {!samplingLoading && samplingOptions.length === 0 && (
+                      <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                        Stasiun ini belum memiliki sampling event. Silakan pilih sumber lain (Jurnal / Berita / Laporan Instansi).
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-foreground">
+                        {importSourceType === "Referensi Jurnal"
+                          ? "Judul Jurnal / Sitasi *"
+                          : importSourceType === "Berita"
+                            ? "Judul Berita / Media *"
+                            : "Nomor / Judul Laporan Instansi *"}
+                      </Label>
+                      <Input
+                        value={importSourceTitle}
+                        onChange={(e) => setImportSourceTitle(e.target.value)}
+                        placeholder={
+                          importSourceType === "Referensi Jurnal"
+                            ? "Penulis (2025). Judul artikel. Jurnal"
+                            : importSourceType === "Berita"
+                              ? "Kompas.com - Sengatan Ubur-ubur..."
+                              : "Laporan SAR / Dinas / Instansi No. 12/2026"
+                        }
+                        className="w-full h-10 px-3 text-xs bg-white dark:bg-[#162032] border-slate-300 dark:border-slate-700 text-foreground"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-foreground">URL / DOI (opsional)</Label>
+                      <Input
+                        value={importSourceUrl}
+                        onChange={(e) => setImportSourceUrl(e.target.value)}
+                        placeholder="https://..."
+                        className="w-full h-10 px-3 text-xs bg-white dark:bg-[#162032] border-slate-300 dark:border-slate-700 text-foreground"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
-              <p>
-                Header kolom harus memuat: <code className="text-primary font-mono">Bulan Kejadian</code>,{" "}
-                <code className="text-primary font-mono">Tanggal Kejadian</code>,{" "}
-                <code className="text-primary font-mono">Lokasi Pantai</code>, dan{" "}
-                <code className="text-primary font-mono">Jumlah Korban</code>.
-              </p>
-              <p>
-                Kolom opsional: <code className="text-primary font-mono">Nama Korban</code>,{" "}
-                <code className="text-primary font-mono">Umur</code>,{" "}
-                <code className="text-primary font-mono">Jenis Kelamin</code>.
-              </p>
+
+              {/* Compact File Dropzone */}
+              <div className="border-2 border-dashed border-border/80 hover:border-primary/60 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 transition-colors bg-slate-50/50 dark:bg-[#162032]/40">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="p-2.5 rounded-lg bg-primary/10 text-primary shrink-0">
+                    <Upload className="size-5" />
+                  </div>
+                  <div className="min-w-0 text-center sm:text-left">
+                    <div className="text-xs font-semibold text-foreground truncate">
+                      {importFile ? importFile.name : "Pilih file spreadsheet (.xlsx, .xls, .csv)"}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Maksimal 10 MB • Tahun kejadian mengikuti isian form di atas
+                    </p>
+                  </div>
+                </div>
+                <input
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  id="excel-upload"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0] || null
+                    setImportFile(f)
+                    setImportResult(null)
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="text-xs bg-background border-border shrink-0 px-3"
+                  onClick={() => document.getElementById("excel-upload")?.click()}
+                >
+                  {importFile ? "Ganti Berkas" : "Pilih Berkas"}
+                </Button>
+              </div>
             </div>
 
-            <DialogFooter className="pt-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => setIsImportOpen(false)} className="text-xs">
+            <DialogFooter className="mx-0 mb-0 px-6 py-3.5 shrink-0 border-t border-border/60 bg-slate-50/80 dark:bg-[#0a101d] flex items-center justify-end gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => setIsImportOpen(false)} className="text-xs px-4">
                 Tutup
               </Button>
               <Button
                 type="submit"
                 size="sm"
-                disabled={!importFile || importing}
-                className="text-xs bg-primary text-primary-foreground font-semibold"
+                disabled={!importFormValid || importing}
+                className="text-xs px-4 bg-primary text-primary-foreground font-semibold"
               >
                 {importing ? (
                   <>
-                    <Loader2 className="size-3.5 animate-spin mr-1" />
+                    <Loader2 className="size-3.5 animate-spin mr-1.5" />
                     Memproses Import...
                   </>
                 ) : (
                   <>
-                    <Upload className="size-3.5 mr-1" />
+                    <Upload className="size-3.5 mr-1.5" />
                     Mulai Import
                   </>
                 )}

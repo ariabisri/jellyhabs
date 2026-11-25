@@ -371,6 +371,10 @@ CREATE TABLE IF NOT EXISTS sting_records (
     victim_gender VARCHAR(20) CHECK (victim_gender IN ('Laki-laki', 'Perempuan')),
     severity_level VARCHAR(50),
     treatment_notes TEXT,
+    data_source_type VARCHAR(50) DEFAULT 'Hasil Sampling', -- 'Hasil Sampling' | 'Referensi Jurnal' | 'Berita' | 'Laporan Instansi'
+    sampling_event_id UUID REFERENCES sampling_events(id) ON DELETE SET NULL,
+    source_title VARCHAR(500),
+    source_url VARCHAR(1024),
     reported_by UUID REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
