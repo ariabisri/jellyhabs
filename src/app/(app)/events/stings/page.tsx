@@ -1734,7 +1734,6 @@ export default function StingsPage() {
                 </div>
                 <a
                   href="/api/stings/template"
-                  download
                   className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-xs shrink-0 whitespace-nowrap"
                 >
                   <Download className="size-3.5" />

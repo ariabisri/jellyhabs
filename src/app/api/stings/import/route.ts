@@ -23,52 +23,75 @@ const MONTH_MAP: Record<string, number> = {
 const DATA_SOURCE_TYPES = ["Hasil Sampling", "Referensi Jurnal", "Berita", "Laporan Instansi"] as const
 type DataSourceType = (typeof DATA_SOURCE_TYPES)[number]
 
-// Cache beach lookup per request (locationName.lower → beach_id)
-const beachCache = new Map<string, string>()
+/** Normalisasi nama pantai: huruf kecil, tanpa awalan "pantai", spasi dirapikan. */
+function normalizeBeachName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^pantai\s+/, "")
+    .trim()
+}
 
 /**
- * Mencari pantai di tabel beaches (case-insensitive).
- * Jika belum ada → auto-insert dengan data minimal (koordinat/desa/kecamatan dikosongkan).
- * Hasilnya di-cache per request untuk efisiensi.
+ * Mencari pantai di stasiun terpilih (cocok persis setelah normalisasi nama,
+ * jadi "Baron" = "Pantai Baron" = "pantai  baron").
+ * Jika belum ada → otomatis ditambahkan ke daftar pantai stasiun tersebut,
+ * lengkap dengan koordinat, kabupaten, dan status aktif.
+ * Hasilnya di-cache per request (cache lokal, bukan global, agar aman untuk request bersamaan).
  */
 async function resolveOrCreateBeach(
   client: PoolClient,
+  cache: Map<string, string>,
   locationName: string,
-  stationId: string
-): Promise<string> {
-  const norm = locationName.trim()
-  const cacheKey = `${norm.toLowerCase()}|${stationId}`
+  stationId: string,
+  latitude: number,
+  longitude: number
+): Promise<{ id: string; created: boolean }> {
+  const displayName = locationName.trim().replace(/\s+/g, " ")
+  const key = normalizeBeachName(displayName)
+  const cacheKey = `${key}|${stationId}`
 
-  if (beachCache.has(cacheKey)) return beachCache.get(cacheKey)!
+  const cached = cache.get(cacheKey)
+  if (cached) return { id: cached, created: false }
 
-  // 1. Exact match (case-insensitive)
-  const exact = await client.query<{ id: string }>(
-    `SELECT id FROM beaches WHERE LOWER(name) = LOWER($1) AND station_id = $2 LIMIT 1`,
-    [norm, stationId]
+  // 1. Cari pantai yang sudah ada (nama dinormalisasi di sisi SQL & JS yang sama)
+  const existing = await client.query<{ id: string }>(
+    `SELECT id FROM beaches
+     WHERE station_id = $1
+       AND TRIM(REGEXP_REPLACE(REGEXP_REPLACE(LOWER(name), '\\s+', ' ', 'g'), '^pantai\\s+', '')) = $2
+     LIMIT 1`,
+    [stationId, key]
   )
-  if (exact.rows[0]) {
-    beachCache.set(cacheKey, exact.rows[0].id)
-    return exact.rows[0].id
+  if (existing.rows[0]) {
+    cache.set(cacheKey, existing.rows[0].id)
+    return { id: existing.rows[0].id, created: false }
   }
 
-  // 2. Partial match (ILIKE)
-  const partial = await client.query<{ id: string }>(
-    `SELECT id FROM beaches WHERE name ILIKE $1 AND station_id = $2 LIMIT 1`,
-    [`%${norm}%`, stationId]
-  )
-  if (partial.rows[0]) {
-    beachCache.set(cacheKey, partial.rows[0].id)
-    return partial.rows[0].id
-  }
-
-  // 3. Auto-insert pantai baru (koordinat/desa/kecamatan NULL)
+  // 2. Pantai baru → masukkan ke daftar pantai stasiun
   const inserted = await client.query<{ id: string }>(
-    `INSERT INTO beaches (name, station_id, status) VALUES ($1, $2, 'aktif') RETURNING id`,
-    [norm.slice(0, 255), stationId]
+    `INSERT INTO beaches (station_id, name, regency, latitude, longitude, description, status)
+     VALUES ($1, $2, 'Gunungkidul', $3, $4, 'Ditambahkan otomatis dari import data korban sengatan', 'aktif')
+     ON CONFLICT DO NOTHING
+     RETURNING id`,
+    [stationId, displayName.slice(0, 150), latitude, longitude]
   )
-  const newId = inserted.rows[0].id
-  beachCache.set(cacheKey, newId)
-  return newId
+
+  let id = inserted.rows[0]?.id
+  let created = !!id
+  if (!id) {
+    // Konflik unik (nama sama sudah ada, mis. beda penulisan) → pakai yang sudah ada
+    const fallback = await client.query<{ id: string }>(
+      `SELECT id FROM beaches WHERE station_id = $1 AND LOWER(name) = LOWER($2) LIMIT 1`,
+      [stationId, displayName.slice(0, 150)]
+    )
+    id = fallback.rows[0]?.id
+    created = false
+  }
+  if (!id) throw new Error(`Gagal menambahkan pantai baru "${displayName}" ke daftar pantai stasiun`)
+
+  cache.set(cacheKey, id)
+  return { id, created }
 }
 
 let sourceColumnsEnsured = false
@@ -366,7 +389,8 @@ export async function POST(request: Request) {
     const client = await pool.connect()
     let insertedCount = 0
     let newBeachCount = 0
-    beachCache.clear() // reset cache per request
+    const beachCache = new Map<string, string>() // cache per request
+    const createdBeachIds = new Set<string>()
 
     try {
       await client.query("BEGIN")
@@ -381,15 +405,16 @@ export async function POST(request: Request) {
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
       `
 
-      // Track beaches yang sudah ada vs baru untuk laporan
-      const existingBeachIds = new Set<string>()
-      const beachIdsBefore = (await client.query<{ id: string }>(
-        `SELECT id FROM beaches WHERE station_id = $1`, [targetStationId]
-      )).rows.map(r => r.id)
-      beachIdsBefore.forEach(id => existingBeachIds.add(id))
-
       for (const rec of parsedRecords) {
-        const beachId = await resolveOrCreateBeach(client, rec.location_name, targetStationId)
+        const { id: beachId, created } = await resolveOrCreateBeach(
+          client,
+          beachCache,
+          rec.location_name,
+          targetStationId,
+          rec.latitude,
+          rec.longitude
+        )
+        if (created) createdBeachIds.add(beachId)
         await client.query(insertSql, [
           rec.incident_date,
           rec.location_name.slice(0, 255),
@@ -411,8 +436,8 @@ export async function POST(request: Request) {
           sourceUrl,
         ])
         insertedCount++
-        if (!existingBeachIds.has(beachId)) newBeachCount++
       }
+      newBeachCount = createdBeachIds.size
 
       const ext = (originalFileName.split(".").pop()?.toUpperCase() || "XLSX").slice(0, 10)
       const generatedFileName = `STING_IMPORT_${Date.now()}.${ext.toLowerCase()}`
